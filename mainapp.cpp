@@ -1,10 +1,19 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
-#include <stdarg.h>
+#include "gpx.h"
+#include "util.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
+#ifdef WIN32
+#define mysnprintf sprintf_s
+#else
+#define mysnprintf snprintf
+#endif
 
 /****************************************************************************
  * DATA STRUCTURES                                                          *
@@ -68,170 +77,11 @@ typedef struct {
 #define APP_HAVE_GL	0x2	/* we have a valid GL context */
 
 /****************************************************************************
- * UTILITY FUNCTIONS: warning output, gl error checking                     *
+ * SETTING UP THE GL STATE                                                  *
  ****************************************************************************/
-
-/* Print a info message to stdout, use printf syntax. */
-static void info (const char *format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	vfprintf(stdout,format, args);
-	va_end(args);
-	fputc('\n', stdout);
-}
-
-/* Print a warning message to stderr, use printf syntax. */
-static void warn (const char *format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr,format, args);
-	va_end(args);
-	fputc('\n', stderr);
-}
-
-/* Check for GL errors. If ignore is not set, print a warning if an error was
- * encountered.
- * Returns GL_NO_ERROR if no errors were set. */
-static GLenum getGLError(const char *action, bool ignore=false, const char *file=NULL, const int line=0)
-{
-	GLenum e,err=GL_NO_ERROR;
-
-	do {
-		e=glGetError();
-		if ( (e != GL_NO_ERROR) && (!ignore) ) {
-			err=e;
-			if (file)
-				fprintf(stderr,"%s:",file);
-			if (line)
-				fprintf(stderr,"%d:",line);
-			warn("GL error 0x%x at %s",(unsigned)err,action);
-		}
-	} while (e != GL_NO_ERROR);
-	return err;
-}
-
-/* helper macros:
- * define GL_ERROR_DBG() to be present only in DEBUG builds. This way, you can
- * add error checks at strategic places without influencing the performance
- * of the RELEASE build */
-#ifdef NDEBUG
-#define GL_ERROR_DBG(action) (void)0
-#else
-#define GL_ERROR_DBG(action) getGLError(action, false, __FILE__, __LINE__)
-#endif
-
-/* define BUFFER_OFFSET to specify offsets inside VBOs */
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
-
-/* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
-#ifdef WIN32
-#define mysnprintf sprintf_s
-#else
-#define mysnprintf snprintf
-#endif
-
-/****************************************************************************
- * GL DEBUG MESSAGES                                                        *
- ****************************************************************************/
-
-/* Newer versions of the GL support the generation of human-readable messages
-   for GL errors, performance warnings and hints. These messages are
-   forwarded to a debug callback which has to be registered with the GL
-   context. Debug output may only be available in special debug context... */
-
-/* translate the debug message "source" enum to human-readable string */
-static const char *
-translateDebugSourceEnum(GLenum source)
-{
-	const char *s;
-
-	switch (source) {
-		case GL_DEBUG_SOURCE_API:
-			s="API";
-			break;
-		case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
-			s="window system";
-			break;
-		case GL_DEBUG_SOURCE_SHADER_COMPILER:
-			s="shader compiler";
-			break;
-		case GL_DEBUG_SOURCE_THIRD_PARTY:
-			s="3rd party";
-			break;
-		case GL_DEBUG_SOURCE_APPLICATION:
-			s="application";
-			break;
-		case GL_DEBUG_SOURCE_OTHER:
-			s="other";
-			break;
-		default:
-			s="[UNKNOWN SOURCE]";
-	}
-
-	return s;
-}
-
-/* translate the debug message "type" enum to human-readable string */
-static const char *
-translateDebugTypeEnum(GLenum type)
-{
-	const char *s;
-
-	switch (type) {
-		case GL_DEBUG_TYPE_ERROR:
-			s="error";
-			break;
-		case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
-			s="deprecated";
-			break;
-		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
-			s="undefined behavior";
-			break;
-		case GL_DEBUG_TYPE_PORTABILITY:
-			s="portability";
-			break;
-		case GL_DEBUG_TYPE_PERFORMANCE:
-			s="performance";
-			break;
-		case GL_DEBUG_TYPE_OTHER:
-			s="other";
-			break;
-		default:
-			s="[UNKNOWN TYPE]";
-	}
-	return s;
-}
-
-/* translate the debug message "xeverity" enum to human-readable string */
-static const char *
-translateDebugSeverityEnum(GLenum severity)
-{
-	const char *s;
-
-	switch (severity) {
-		case GL_DEBUG_SEVERITY_HIGH:
-			s="high";
-			break;
-		case GL_DEBUG_SEVERITY_MEDIUM:
-			s="medium";
-			break;
-		case GL_DEBUG_SEVERITY_LOW:
-			s="low";
-			break;
-		case GL_DEBUG_SEVERITY_NOTIFICATION:
-			s="notification";
-			break;
-		default:
-			s="[UNKNOWN SEVERITY]";
-	}
-
-	return s;
-}
 
 /* debug callback of the GL */
-extern void APIENTRY
+static void APIENTRY
 debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
 			  GLsizei length, const GLchar *message, const GLvoid* userParam)
 {
@@ -242,73 +92,34 @@ debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
 		case GL_DEBUG_TYPE_ERROR:
 		case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
 			if (cfg->debugOutputLevel >= DEBUG_OUTPUT_ERRORS_ONLY) {
-				warn("GLDEBUG: %s %s %s [0x%x]: %s",
-					translateDebugSourceEnum(source),
-					translateDebugTypeEnum(type),
-					translateDebugSeverityEnum(severity),
+				gpxutil::warn("GLDEBUG: %s %s %s [0x%x]: %s",
+					gpxutil::translateDebugSourceEnum(source),
+					gpxutil::translateDebugTypeEnum(type),
+					gpxutil::translateDebugSeverityEnum(severity),
 					id, message);
 			}
 			break;
 		default:
 			if (cfg->debugOutputLevel >= DEBUG_OUTPUT_ALL) {
-				warn("GLDEBUG: %s %s %s [0x%x]: %s",
-					translateDebugSourceEnum(source),
-					translateDebugTypeEnum(type),
-					translateDebugSeverityEnum(severity),
+				gpxutil::warn("GLDEBUG: %s %s %s [0x%x]: %s",
+					gpxutil::translateDebugSourceEnum(source),
+					gpxutil::translateDebugTypeEnum(type),
+					gpxutil::translateDebugSeverityEnum(severity),
 					id, message);
 			}
 	}
 }
 
-/****************************************************************************
- * UTILITY FUNCTIONS: print information about the GL context                *
- ****************************************************************************/
-
-/* Print info about the OpenGL context */
-static void printGLInfo()
-{
-	/* get infos about the GL implementation */
-	info("OpenGL: %s %s %s",
-			glGetString(GL_VENDOR),
-			glGetString(GL_RENDERER),
-			glGetString(GL_VERSION));
-	info("OpenGL Shading language: %s",
-			glGetString(GL_SHADING_LANGUAGE_VERSION));
-}
-
-/* List all supported GL extensions */
-static void listGLExtensions()
-{
-	GLint num=0;
-	GLuint i;
-	glGetIntegerv(GL_NUM_EXTENSIONS, &num);
-	info("GL extensions supported: %d", num);
-	if (num < 1) {
-		return;
-	}
-
-	for (i=0; i<(GLuint)num; i++) {
-		const GLubyte *ext=glGetStringi(GL_EXTENSIONS,i);
-		if (ext) {
-			info("  %s",ext);
-		}
-	}
-}
-
-/****************************************************************************
- * SETTING UP THE GL STATE                                                  *
- ****************************************************************************/
-
 /* Initialize the global OpenGL state. This is called once after the context
  * is created. */
 static void initGLState(const AppConfig&cfg)
 {
-	printGLInfo();
-	listGLExtensions();
+	gpxutil::printGLInfo();
+	//listGLExtensions();
 
 	if (cfg.debugOutputLevel > DEBUG_OUTPUT_DISABLED) {
 		if (GLAD_GL_VERSION_4_3) {
-			info("enabling GL debug output [via OpenGL >= 4.3]");
+			gpxutil::info("enabling GL debug output [via OpenGL >= 4.3]");
 			glDebugMessageCallback(debugCallback,&cfg);
 			glEnable(GL_DEBUG_OUTPUT);
 			if (cfg.debugOutputSynchronous) {
@@ -317,7 +128,7 @@ static void initGLState(const AppConfig&cfg)
 				glDisable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 			}
 		} else if (GLAD_GL_KHR_debug) {
-			info("enabling GL debug output [via GL_KHR_debug]");
+			gpxutil::info("enabling GL debug output [via GL_KHR_debug]");
 			glDebugMessageCallback(debugCallback,&cfg);
 			glEnable(GL_DEBUG_OUTPUT);
 			if (cfg.debugOutputSynchronous) {
@@ -326,7 +137,7 @@ static void initGLState(const AppConfig&cfg)
 				glDisable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 			}
 		} else if (GLAD_GL_ARB_debug_output) {
-			info("enabling GL debug output [via GL_ARB_debug_output]");
+			gpxutil::info("enabling GL debug output [via GL_ARB_debug_output]");
 			glDebugMessageCallbackARB(debugCallback,&cfg);
 			if (cfg.debugOutputSynchronous) {
 				glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
@@ -334,7 +145,7 @@ static void initGLState(const AppConfig&cfg)
 				glDisable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
 			}
 		} else {
-			warn("GL debug output requested, but not supported by the context");
+			gpxutil::warn("GL debug output requested, but not supported by the context");
 		}
 	}
 
@@ -348,149 +159,6 @@ static void initGLState(const AppConfig&cfg)
 }
 
 /****************************************************************************
- * SHADER COMPILATION AND LINKING                                           *
- ****************************************************************************/
-
-/* Print the info log of the shader compiler/linker.
- * If program is true, obj is assumed to be a program object, otherwise, it
- * is assumed to be a shader object.
- */
-static void printInfoLog(GLuint obj, bool program)
-{
-	char log[16384];
-	if (program) {
-		glGetProgramInfoLog(obj, sizeof(log), 0, log);
-	} else {
-		glGetShaderInfoLog(obj, sizeof(log), 0, log);
-	}
-	/* technically, this is not strictly necessary as the GL implementation
-	 * is required to properly terminate the string, but we never trust
-	 * other code and make sure the string is terminated before running out
-	 * of the buffer. */
-	log[sizeof(log)-1]=0;
-	fprintf(stderr,"%s\n",log);
-}
-
-/* Create a new shader object, attach "source" as source string,
- * and compile it.
- * Returns the name of the newly created shader object, or 0 in case of an
- * error.
- */
-static  GLuint shaderCreateAndCompile(GLenum type, const GLchar *source)
-{
-	GLuint shader=0;
-	GLint status;
-
-	shader=glCreateShader(type);
-	info("created shader object %u",shader);
-	glShaderSource(shader, 1, (const GLchar**)&source, NULL);
-	info("compiling shader object %u",shader);
-	glCompileShader(shader);
-
-	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
-	if (status != GL_TRUE) {
-		warn("Failed to compile shader");
-		printInfoLog(shader,false);
-		glDeleteShader(shader);
-		shader=0;
-	}
-
-	return shader;
-}
-
-/* Create a new shader object by loading a file, and compile it.
- * Returns the name of the newly created shader object, or 0 in case of an
- * error.
- */
-static  GLuint shaderCreateFromFileAndCompile(GLenum type, const char *filename)
-{
-
-	info("loading shader file '%s'",filename);
-	FILE *file = fopen(filename, "rt");
-	if(!file) {
-		warn("Failed to open shader file '%s'", filename);
-		return 0;
-	}
-	fseek(file, 0, SEEK_END);
-	long size = ftell(file);
-	GLchar *source = (GLchar*)malloc(size+1);
-	if (!source) {
-		warn("Failed to allocate memory for shader file '%s'", filename);
-		fclose(file);
-		return 0;
-	}
-	fseek(file, 0, SEEK_SET);
-	source[fread(source, 1, size, file)] = 0;
-	fclose(file);
-
-	GLuint shader=shaderCreateAndCompile(type, source);
-	free(source);
-	return shader;
-}
-
-/* Create a program by linking a vertex and fragment shader object. The shader
- * objects should already be compiled.
- * Returns the name of the newly created program object, or 0 in case of an
- * error.
- */
-static GLuint programCreate(GLuint vertex_shader, GLuint fragment_shader)
-{
-	GLuint program=0;
-	GLint status;
-
-	program=glCreateProgram();
-	info("created program %u",program);
-
-	if (vertex_shader)
-		glAttachShader(program, vertex_shader);
-	if (fragment_shader)
-		glAttachShader(program, fragment_shader);
-
-	/* hard-code the attribute indices for the attributeds we use */
-	glBindAttribLocation(program, 0, "pos");
-	glBindAttribLocation(program, 1, "nrm");
-	glBindAttribLocation(program, 2, "clr");
-	glBindAttribLocation(program, 3, "tex");
-
-	/* hard-code the color number of the fragment shader output */
-	glBindFragDataLocation(program, 0, "color");
-
-	/* finally link the program */
-	info("linking program %u",program);
-	glLinkProgram(program);
-
-	glGetProgramiv(program, GL_LINK_STATUS, &status);
-	if (status != GL_TRUE) {
-		warn("Failed to link program!");
-		printInfoLog(program,true);
-		glDeleteProgram(program);
-		return 0;
-	}
-	return program;
-}
-
-/* Create a program object directly from vertex and fragment shader source
- * files.
- * Returns the name of the newly created program object, or 0 in case of an
- * error.
- */
-static GLenum programCreateFromFiles(const char *vs, const char *fs)
-{
-	GLuint id_vs=shaderCreateFromFileAndCompile(GL_VERTEX_SHADER, vs);
-	GLuint id_fs=shaderCreateFromFileAndCompile(GL_FRAGMENT_SHADER, fs);
-	GLuint program=programCreate(id_vs,id_fs);
-	/* Delete the shader objects. Since they are still in use in the
-	 * program object, OpenGL will not destroy them internally until
-	 * the program object is destroyed. The caller of this function
-	 * does not need to care about the shader objects at all. */
-	info("destroying shader object %u",id_vs);
-	glDeleteShader(id_vs);
-	info("destroying shader object %u",id_fs);
-	glDeleteShader(id_fs);
-	return program;
-}
-
-/****************************************************************************
  * WINDOW-RELATED CALLBACKS                                                 *
  ****************************************************************************/
 
@@ -499,7 +167,7 @@ static GLenum programCreateFromFiles(const char *vs, const char *fs)
 static void callback_Resize(GLFWwindow *win, int w, int h)
 {
 	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
-	info("new framebuffer size: %dx%d pixels",w,h);
+	gpxutil::info("new framebuffer size: %dx%d pixels",w,h);
 
 	/* store curent size for later use in the main loop */
 	app->width=w;
@@ -544,9 +212,9 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	app->frame = 0;
 
 	/* initialize GLFW library */
-	info("initializing GLFW");
+	gpxutil::info("initializing GLFW");
 	if (!glfwInit()) {
-		warn("Failed to initialze GLFW");
+		gpxutil::warn("Failed to initialze GLFW");
 		return false;
 	}
 
@@ -575,10 +243,10 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 		if (v) {
 			w = v->width;
 			h = v->height;
-			info("Primary monitor: %dx%d @(%d,%d)", w, h, x, y);
+			gpxutil::info("Primary monitor: %dx%d @(%d,%d)", w, h, x, y);
 		}
 		else {
-			warn("Failed to query current video mode!");
+			gpxutil::warn("Failed to query current video mode!");
 		}
 	}
 
@@ -587,10 +255,10 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	}
 
 	/* create the window and the gl context */
-	info("creating window and OpenGL context");
+	gpxutil::info("creating window and OpenGL context");
 	app->win=glfwCreateWindow(w, h, APP_TITLE, monitor, NULL);
 	if (!app->win) {
-		warn("failed to get window with OpenGL 4.6 core context");
+		gpxutil::warn("failed to get window with OpenGL 4.6 core context");
 		return false;
 	}
 
@@ -619,14 +287,14 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	/* initialize glad,
 	 * this will load all OpenGL function pointers
 	 */
-	info("initializing glad");
+	gpxutil::info("initializing glad");
 	if (!gladLoadGL(glfwGetProcAddress)) {
-		warn("failed to intialize glad GL extension loader");
+		gpxutil::warn("failed to intialize glad GL extension loader");
 		return false;
 	}
 
 	if (!GLAD_GL_VERSION_4_6) {
-		warn("failed to load at least GL 4.6 functions via GLAD");
+		gpxutil::warn("failed to load at least GL 4.6 functions via GLAD");
 		return false;
 	}
 
@@ -704,7 +372,7 @@ static void mainLoop(MainApp *app, const AppConfig& cfg)
 	double start_time=glfwGetTime();
 	double last_time=start_time;
 
-	info("entering main loop");
+	gpxutil::info("entering main loop");
 	while (!glfwWindowShouldClose(app->win)) {
 		/* update the current time and time delta to last frame */
 		double now=glfwGetTime();
@@ -722,7 +390,7 @@ static void mainLoop(MainApp *app, const AppConfig& cfg)
 			/* update window title */
 			mysnprintf(WinTitle, sizeof(WinTitle), APP_TITLE "   /// AVG: %4.2fms/frame (%.1ffps)", app->avg_frametime, app->avg_fps);
 			glfwSetWindowTitle(app->win, WinTitle);
-			info("frame time: %4.2fms/frame (%.1ffps)",app->avg_frametime, app->avg_fps);
+			gpxutil::info("frame time: %4.2fms/frame (%.1ffps)",app->avg_frametime, app->avg_fps);
 		}
 
 		/* call the display function */
@@ -737,7 +405,7 @@ static void mainLoop(MainApp *app, const AppConfig& cfg)
 		 * the events to us. */
 		glfwPollEvents();
 	}
-	info("left main loop\n%u frames rendered in %.1fs seconds == %.1ffps",
+	gpxutil::info("left main loop\n%u frames rendered in %.1fs seconds == %.1ffps",
 		app->frame,(app->timeCur-start_time),
 		(double)app->frame/(app->timeCur-start_time) );
 }
@@ -785,6 +453,9 @@ int main (int argc, char **argv)
 	MainApp app;	/* the cube application stata stucture */
 
 	parseCommandlineArgs(cfg, argc, argv);
+
+	gpx::CTrack track;
+	track.Load("a.gpx");
 
 	if (initMainApp(&app, cfg)) {
 		/* initialization succeeded, enter the main loop */
