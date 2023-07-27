@@ -315,7 +315,7 @@ extern GLuint programCreate(GLuint vertex_shader, GLuint fragment_shader)
  * Returns the name of the newly created program object, or 0 in case of an
  * error.
  */
-extern GLenum programCreateFromFiles(const char *vs, const char *fs)
+extern GLuint programCreateFromFiles(const char *vs, const char *fs)
 {
 	GLuint id_vs=shaderCreateFromFileAndCompile(GL_VERTEX_SHADER, vs);
 	GLuint id_fs=shaderCreateFromFileAndCompile(GL_FRAGMENT_SHADER, fs);

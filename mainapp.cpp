@@ -3,6 +3,7 @@
 
 #include "gpx.h"
 #include "util.h"
+#include "vis.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,6 +71,8 @@ typedef struct {
 	double avg_fps;
 	unsigned int frame;
 
+	// actual visualizer
+	gpxvis::CVis vis;
 } MainApp;
 
 /* flags */
@@ -304,6 +307,10 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	initGLState(cfg);
 
 	// TODO ...
+	if (!app->vis.InitializeGL()) {
+		gpxutil::warn("failed to initialize visualization");
+		return false;
+	}
 
 	/* initialize the timer */
 	app->timeCur=glfwGetTime();
@@ -317,7 +324,7 @@ static void destroyMainApp(MainApp *app)
 	if (app->flags & APP_HAVE_GLFW) {
 		if (app->win) {
 			if (app->flags & APP_HAVE_GL) {
-				// TODO ...
+				app->vis.DropGL();
 			}
 			glfwDestroyWindow(app->win);
 		}
@@ -334,6 +341,7 @@ static void
 drawScene(MainApp *app)
 {
 	// TODO ...
+	app->vis.Draw();
 }
 
 
