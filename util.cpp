@@ -376,7 +376,7 @@ void CAABB::GetNormalizeScaleOffset(double scale[3], double offset[3]) const
 	for (int i=0; i<3; i++) {
 		double x = aabb[i+3] - aabb[i];
 		if (x > 0.0) {
-			scale[1] = 1.0 / x;
+			scale[i] = 1.0 / x;
 		} else {
 			scale[i] = 1.0;
 		}

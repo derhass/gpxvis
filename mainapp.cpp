@@ -72,7 +72,7 @@ typedef struct {
 	unsigned int frame;
 
 	// actual visualizer
-	gpxvis::CVis vis;
+	gpxvis::CAnimController animCtrl;
 } MainApp;
 
 /* flags */
@@ -154,7 +154,7 @@ static void initGLState(const AppConfig&cfg)
 
 	/* we set these once and never change them, so there is no need
 	 * to set them during the main loop */
-	glEnable(GL_DEPTH_TEST);
+//	glEnable(GL_DEPTH_TEST);
 
 	/* We do not enable backface culling, since the "cut" shader works
 	 * best when one can see through the cut-out front faces... */
@@ -307,8 +307,8 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	initGLState(cfg);
 
 	// TODO ...
-	if (!app->vis.InitializeGL()) {
-		gpxutil::warn("failed to initialize visualization");
+	if (!app->animCtrl.Prepare(800,600)) {
+		gpxutil::warn("failed to initialize animation controller");
 		return false;
 	}
 
@@ -324,7 +324,7 @@ static void destroyMainApp(MainApp *app)
 	if (app->flags & APP_HAVE_GLFW) {
 		if (app->win) {
 			if (app->flags & APP_HAVE_GL) {
-				app->vis.DropGL();
+				app->animCtrl.DropGL();
 			}
 			glfwDestroyWindow(app->win);
 		}
@@ -341,7 +341,7 @@ static void
 drawScene(MainApp *app)
 {
 	// TODO ...
-	app->vis.Draw();
+	app->animCtrl.Draw();
 }
 
 
@@ -462,8 +462,7 @@ int main (int argc, char **argv)
 
 	parseCommandlineArgs(cfg, argc, argv);
 
-	gpx::CTrack track;
-	track.Load("a.gpx");
+	app.animCtrl.AddTrack("a.gpx");
 
 	if (initMainApp(&app, cfg)) {
 		/* initialization succeeded, enter the main loop */

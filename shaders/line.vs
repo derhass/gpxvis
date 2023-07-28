@@ -45,7 +45,7 @@ void main()
 
 	basePoint = basePoint + vertex.x * t + vertex.y * n;
 
-	gl_Position = vec4(basePoint, 0, 1);
+	gl_Position = vec4(2.0*basePoint - vec2(1.0), 0, 1);
 
 
 }
