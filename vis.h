@@ -23,7 +23,7 @@ class CVis {
 		CVis& operator=(const CVis& other) = delete;
 		CVis& operator=(CVis&& other) = delete;
 
-		bool InitializeGL();
+		bool InitializeGL(GLsizei w, GLsizei h);
 		void DropGL();
 
 		void SetPolygon(const std::vector<GLfloat>& vertices2D);
@@ -31,12 +31,23 @@ class CVis {
 		void Draw();
 
 	private:
+		typedef enum {
+			FB_FIRST = 0,
+			FB_BACKGROUND = FB_FIRST,
+			FB_NEIGHBORHOOD,
+
+			FB_COUNT
+		} TFramebuffer;
 		size_t bufferVertexCount;
 		size_t vertexCount;
+		GLsizei width;
+		GLsizei height;
 
 		GLuint vaoEmpty;
 		GLuint ssboLine;
 		GLuint programLine;
+		GLuint fbo[FB_COUNT];
+		GLuint tex[FB_COUNT];
 };
 
 /****************************************************************************

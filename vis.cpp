@@ -11,10 +11,16 @@ namespace gpxvis {
 CVis::CVis() :
 	bufferVertexCount(0),
 	vertexCount(0),
+	width(0),
+	height(0),
 	vaoEmpty(0),
 	ssboLine(0),
 	programLine(0)
 {
+	for (int i=0; i<FB_COUNT; i++) {
+		fbo[i] = 0;
+		tex[i] = 0;
+	}
 }
 
 CVis::~CVis()
@@ -22,39 +28,92 @@ CVis::~CVis()
 	DropGL();
 }
 
-bool CVis::InitializeGL()
+bool CVis::InitializeGL(GLsizei w, GLsizei h)
 {
+	if (w != width || h != height) {
+		DropGL();
+	}
+
 	if (!vaoEmpty) {
 		glGenVertexArrays(1, &vaoEmpty);
 		glBindVertexArray(vaoEmpty);
+		glBindVertexArray(0);
+		gpxutil::info("created VAO %u (empty)", vaoEmpty);
 	}
 
 	if (!programLine) {
 		programLine = gpxutil::programCreateFromFiles("shaders/line.vs", "shaders/line.fs"); 
+		if (!programLine) {
+			gpxutil::warn("line shader failed");
+			return false;
+		}
+		gpxutil::info("created program %u (line shader)", programLine);
 	}
 
-	return (programLine && vaoEmpty);
+	for (int i=0; i<FB_COUNT; i++) {
+		if (!tex[i]) {
+			glGenTextures(1, &tex[i]);
+			glBindTexture(GL_TEXTURE_2D, tex[i]);
+			glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, w, h);
+			glBindTexture(GL_TEXTURE_2D, 0);
+			gpxutil::info("created texture %u %ux%u (frambeuffer idx %d color attachment)", tex[i], (unsigned)w, (unsigned)h, i);
+		}
+
+		if (!fbo[i]) {
+			glGenFramebuffers(1, &fbo[i]);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[i]);
+			glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, tex[i], 0);
+			GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			if (status != GL_FRAMEBUFFER_COMPLETE) {
+				gpxutil::warn("framebuffer idx %d setup failed with status 0x%x", i, (unsigned)status);
+				return false;
+			}
+			gpxutil::info("created FBO %u (frambeuffer idx %d)", fbo[i], i);
+		}
+	}
+	width = w;
+	height = h;
+	return true;
 }
 
 void CVis::DropGL()
 {
 	if (vaoEmpty) {
+		gpxutil::info("destroying VAO %u (empty)", vaoEmpty);
 		glDeleteVertexArrays(1, &vaoEmpty);
 		vaoEmpty = 0;
 	}
 	if (ssboLine) {
+		gpxutil::info("destroying buffer %u (SSBO line)", ssboLine);
 		glDeleteBuffers(1, &ssboLine);
 		ssboLine = 0;
 	}
 	if (programLine) {
+		gpxutil::info("destroying program %u (line shader)", programLine);
 		glDeleteProgram(programLine);
 		programLine = 0;
 	}
+	for (int i=0; i<FB_COUNT; i++) {
+		if (fbo[i]) {
+			gpxutil::info("destroying FBO %u (frambeuffer idx %d)", fbo[i], i);
+			glDeleteFramebuffers(1, &fbo[i]);
+			fbo[i] = 0;
+		}
+		if (tex[i]) {
+			gpxutil::info("destroying texture %u (frambeuffer idx %d color attachment)", tex[i], i);
+			glDeleteTextures(1, &tex[i]);
+			tex[i] = 0;
+		}
+	}
+	width = 0;
+	height = 0;
 }
 
 void CVis::SetPolygon(const std::vector<GLfloat>& vertices2D)
 {
 	if (ssboLine) {
+		gpxutil::info("destroying buffer %u (SSBO line)", ssboLine);
 		glDeleteBuffers(1, &ssboLine);
 		ssboLine = 0;
 	}
@@ -62,6 +121,7 @@ void CVis::SetPolygon(const std::vector<GLfloat>& vertices2D)
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssboLine);
 	glBufferStorage(GL_SHADER_STORAGE_BUFFER, sizeof(GLfloat) * vertices2D.size(), vertices2D.data(), 0);
 	bufferVertexCount = vertexCount = vertices2D.size() / 2;
+	gpxutil::info("created buffer %u (SSBO line) for %u vertices", ssboLine, (unsigned)bufferVertexCount);
 }
 
 void  CVis::Draw()
@@ -100,11 +160,12 @@ bool CAnimController::AddTrack(const char *filename)
 
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
-	if (!vis.InitializeGL()) {
+	if (!vis.InitializeGL(width, height)) {
 		return false;
 	}
 
 	if (tracks.size() < 1) {
+		gpxutil::warn("anim controller without tracks");
 		return false;
 	}
 
