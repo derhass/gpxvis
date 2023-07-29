@@ -11,7 +11,7 @@ layout(std140, binding=1) uniform lineParamUBO
 	vec2 lineWidths;
 } lineParam;
 
-layout(binding=0) uniform sampler2D texBackground;
+layout(location=0, binding=0) uniform sampler2D texBackground;
 
 void main()
 {

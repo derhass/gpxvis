@@ -19,6 +19,8 @@ layout(std140, binding=1) uniform lineParamUBO
 	vec2 lineWidths;
 } lineParam;
 
+layout(location=1) uniform float upTo;
+
 out vec2 lineCoord;
 
 void main()
@@ -33,10 +35,15 @@ void main()
 	vec2 line[2] = vec2[2](points.point[lineIdx],points.point[lineIdx+1]);
 
 	vec2 delta = line[1] - line[0];
+	if (lineIdx >= int(upTo)) {
+		delta *= fract(upTo);
+		line[1] = line[0] + delta;
+	}
 	float len = length(delta);
 	vec2 t;
 	if (len > 0.0000001) {
 		t = normalize(delta);
+		delta = vec2(0,0);
 	} else {
 		t = vec2(1,0);
 	}

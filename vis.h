@@ -28,7 +28,7 @@ class CVis {
 
 		void SetPolygon(const std::vector<GLfloat>& vertices2D);
 
-		void DrawTrack(size_t upTo, bool withFinish);
+		void DrawTrack(float upTo);
 		void DrawSimple();
 		void DrawNeighborhood();
 
@@ -37,7 +37,6 @@ class CVis {
 	private:
 		typedef enum {
 			SSBO_LINE,
-			SSBO_FINISH,
 			SSBO_COUNT // end marker
 		} TSSBO;
 
