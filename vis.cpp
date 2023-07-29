@@ -14,6 +14,7 @@ namespace ubo {
 
 struct transformParam {
 	GLfloat scale_offset[4];
+	GLfloat size[4];
 };
 
 struct lineParam {
@@ -35,9 +36,7 @@ CVis::CVis() :
 	vertexCount(0),
 	width(0),
 	height(0),
-	vaoEmpty(0),
-	ssboLine(0),
-	programLine(0)
+	vaoEmpty(0)
 {
 	colorBackground[0] = 0.0f;
 	colorBackground[1] = 0.0f;
@@ -67,13 +66,18 @@ CVis::CVis() :
 	trackWidth = 1.0f;
 	neighborhoodWidth = 3.0f;
 
+	for (int i=0; i<SSBO_COUNT; i++) {
+		ssbo[i] = 0;
+	}
 	for (int i=0; i<FB_COUNT; i++) {
 		fbo[i] = 0;
 		tex[i] = 0;
 	}
-
 	for (int i=0; i<UBO_COUNT; i++) {
 		ubo[i] = 0;
+	}
+	for (int i=0; i<PROG_COUNT; i++) {
+		program[i] = 0;
 	}
 }
 
@@ -95,37 +99,41 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h)
 		gpxutil::info("created VAO %u (empty)", vaoEmpty);
 	}
 
-	if (!programLine) {
-		programLine = gpxutil::programCreateFromFiles("shaders/line.vs", "shaders/line.fs"); 
-		if (!programLine) {
-			gpxutil::warn("line shader failed");
-			return false;
-		}
-		gpxutil::info("created program %u (line shader)", programLine);
-	}
-
 	for (int i=0; i<FB_COUNT; i++) {
 		if (!tex[i]) {
 			GLenum format = (i == FB_NEIGHBORHOOD)? GL_R8:GL_RGBA8;
 			glGenTextures(1, &tex[i]);
 			glBindTexture(GL_TEXTURE_2D, tex[i]);
 			glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glBindTexture(GL_TEXTURE_2D, 0);
 			gpxutil::info("created texture %u %ux%u fmt 0x%x (frambeuffer idx %d color attachment)", tex[i], (unsigned)w, (unsigned)h, (unsigned)format, i);
 		}
 
-		if (!fbo[i]) {
+		if (fbo[i]) {
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[i]);
+		} else {
 			glGenFramebuffers(1, &fbo[i]);
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[i]);
 			glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, tex[i], 0);
 			GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 			if (status != GL_FRAMEBUFFER_COMPLETE) {
 				gpxutil::warn("framebuffer idx %d setup failed with status 0x%x", i, (unsigned)status);
 				return false;
 			}
 			gpxutil::info("created FBO %u (frambeuffer idx %d)", fbo[i], i);
 		}
+		GLfloat clear[4];
+		if (i == FB_BACKGROUND) {
+			memcpy(clear, colorBackground, sizeof(GLfloat)*4);
+		} else {
+			clear[0] = clear[1] = clear[2] = clear[3] = 0.0f;
+		}
+		glClear(GL_COLOR_BUFFER_BIT);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	}
 
 	width = w;
@@ -134,6 +142,24 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h)
 	for (int i=0; i<UBO_COUNT; i++) {
 		if (!InitializeUBO(i)) {
 			return false;
+		}
+	}
+
+	static const char* programs[PROG_COUNT][2] = {
+		{ "shaders/simple.vs", "shaders/simple.fs" },
+		{ "shaders/track.vs", "shaders/track.fs"},
+		{ "shaders/line.vs", "shaders/line.fs"},
+		{ "shaders/fullscreen.vs", "shaders/blend.fs"},
+	};
+
+	for (int i=0; i<PROG_COUNT; i++) {
+		if (!program[i]) {
+			program[i] = gpxutil::programCreateFromFiles(programs[i][0], programs[i][1]);
+			if (!program[i]) {
+				gpxutil::warn("program idx %d (%s, %s) failed", i, programs[i][0], programs[i][1]);
+				return false;
+			}
+			gpxutil::info("created program %u (idx %d)", program[i], i);
 		}
 	}
 	return true;
@@ -164,6 +190,10 @@ bool CVis::InitializeUBO(int i)
 			transformParam.scale_offset[1] = 2.0f;
 			transformParam.scale_offset[2] =-1.0f;
 			transformParam.scale_offset[3] =-1.0f;
+			transformParam.size[0] = (GLfloat)width;
+			transformParam.size[1] = (GLfloat)height;
+			transformParam.size[2] = 1.0f/transformParam.size[0];
+			transformParam.size[3] = 1.0f/transformParam.size[1];
 			break;
 		case UBO_LINE:
 			size = sizeof(ubo::lineParam);
@@ -175,8 +205,8 @@ bool CVis::InitializeUBO(int i)
 			lineParam.distCoeff[2] = 1.0f;
 			lineParam.distCoeff[3] = 0.0f;
 			// TODO XXXXXXXXXX
-			lineParam.lineWidths[0] = 0.1f;
-			lineParam.lineWidths[1] = 0.1f;
+			lineParam.lineWidths[0] = 0.05f;
+			lineParam.lineWidths[1] = 0.02f;
 			break;
 		default:
 			gpxutil::warn("invalid UBO idx %d", i);
@@ -195,15 +225,12 @@ void CVis::DropGL()
 		glDeleteVertexArrays(1, &vaoEmpty);
 		vaoEmpty = 0;
 	}
-	if (ssboLine) {
-		gpxutil::info("destroying buffer %u (SSBO line)", ssboLine);
-		glDeleteBuffers(1, &ssboLine);
-		ssboLine = 0;
-	}
-	if (programLine) {
-		gpxutil::info("destroying program %u (line shader)", programLine);
-		glDeleteProgram(programLine);
-		programLine = 0;
+	for (int i=0; i<SSBO_COUNT; i++) {
+		if (ssbo[i]) {
+			gpxutil::info("destroying buffer %u (SSBO %d)", ssbo[i], i);
+			glDeleteBuffers(1, &ssbo[i]);
+			ssbo[i] = 0;
+		}
 	}
 	for (int i=0; i<FB_COUNT; i++) {
 		if (fbo[i]) {
@@ -224,37 +251,99 @@ void CVis::DropGL()
 			ubo[i] = 0;
 		}
 	}
+	for (int i=0; i<PROG_COUNT; i++) {
+		if (program[i]) {
+			gpxutil::info("destroying program %u (idx %d)", program[i], i);
+			glDeleteProgram(program[i]);
+			program[i] = 0;
+		}
+	}
 	width = 0;
 	height = 0;
 }
 
 void CVis::SetPolygon(const std::vector<GLfloat>& vertices2D)
 {
-	if (ssboLine) {
-		gpxutil::info("destroying buffer %u (SSBO line)", ssboLine);
-		glDeleteBuffers(1, &ssboLine);
-		ssboLine = 0;
+	if (ssbo[SSBO_LINE]) {
+		gpxutil::info("destroying buffer %u (SSBO %d line)", ssbo[SSBO_LINE], (int)SSBO_LINE);
+		glDeleteBuffers(1, &ssbo[SSBO_LINE]);
+		ssbo[SSBO_LINE] = 0;
 	}
-	glGenBuffers(1, &ssboLine);
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssboLine);
+	glGenBuffers(1, &ssbo[SSBO_LINE]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, ssbo[SSBO_LINE]);
 	glBufferStorage(GL_SHADER_STORAGE_BUFFER, sizeof(GLfloat) * vertices2D.size(), vertices2D.data(), 0);
 	bufferVertexCount = vertexCount = vertices2D.size() / 2;
-	gpxutil::info("created buffer %u (SSBO line) for %u vertices", ssboLine, (unsigned)bufferVertexCount);
+	gpxutil::info("created buffer %u (SSBO %d line) for %u vertices", ssbo[SSBO_LINE], (int)SSBO_LINE, (unsigned)bufferVertexCount);
 }
 
-void  CVis::Draw()
+void CVis::DrawTrack(size_t upTo, bool withFinish)
 {
-	glUseProgram(programLine);
+	// TODO: up to, and finish
+	glViewport(0,0,width,height);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_TRACK]);
+	glUseProgram(program[PROG_LINE_TRACK]);
 	glBindVertexArray(vaoEmpty);
 
 	glBlendEquation(GL_MAX);
 	glBlendFunc(GL_ONE, GL_ONE);
 	glEnable(GL_BLEND);
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssboLine);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, tex[FB_NEIGHBORHOOD]);
+	glDrawArrays(GL_TRIANGLES, 0, 18*(vertexCount-1));
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glUseProgram(program[PROG_FULLSCREEN_BLEND]);
+	GLuint texs[2] = {tex[FB_BACKGROUND], tex[FB_TRACK]};
+	glBindTextures(1,2,texs);
+	glDisable(GL_BLEND);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+
+
+}
+
+void CVis::DrawSimple()
+{
+	glUseProgram(program[PROG_LINE_SIMPLE]);
+	glBindVertexArray(vaoEmpty);
+
+	glDisable(GL_BLEND);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+	glDrawArrays(GL_LINE_STRIP, 0, vertexCount);
+}
+
+void CVis::DrawNeighborhood()
+{
+	glUseProgram(program[PROG_LINE_NEIGHBORHOOD]);
+	glBindVertexArray(vaoEmpty);
+
+	glBlendEquation(GL_MAX);
+	glBlendFunc(GL_ONE, GL_ONE);
+	glEnable(GL_BLEND);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
 	glDrawArrays(GL_TRIANGLES, 0, 18*(vertexCount-1));
+}
+
+void CVis::AddToBackground()
+{
+	glViewport(0,0,width,height);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
+	DrawSimple();
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
+	DrawNeighborhood();
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
 /****************************************************************************
@@ -304,6 +393,11 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	std::vector<GLfloat> vertices;
 	tracks[0].GetVertices(false, offset, scale, vertices);
 	vis.SetPolygon(vertices);
+	vis.AddToBackground();
+
+	vertices.clear();
+	tracks[1].GetVertices(false, offset, scale, vertices);
+	vis.SetPolygon(vertices);
 
 	return true;
 }
@@ -315,7 +409,7 @@ void CAnimController::DropGL()
 
 void CAnimController::Draw()
 {
-	vis.Draw();
+	vis.DrawTrack(0,false);
 }
 
 } // namespace gpxvis

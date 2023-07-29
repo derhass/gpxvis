@@ -55,7 +55,7 @@ void main()
 	}
 	lineCoord = vertex;
 
-	vertex = lineParam.lineWidths.x * vertex;
+	vertex = lineParam.lineWidths.y * vertex;
 
 	basePoint = basePoint + vertex.x * t + vertex.y * n;
 

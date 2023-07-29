@@ -51,7 +51,12 @@ struct AppConfig {
 		frameCount(0),
 		debugOutputLevel(DEBUG_OUTPUT_DISABLED),
 		debugOutputSynchronous(false)
-	{}
+	{
+#ifndef NDEBUG
+		debugOutputLevel = DEBUG_OUTPUT_ALL;
+#endif
+	}
+
 };
 
 /* MainApp: We encapsulate all of our application state in this struct.
@@ -463,6 +468,7 @@ int main (int argc, char **argv)
 	parseCommandlineArgs(cfg, argc, argv);
 
 	app.animCtrl.AddTrack("a.gpx");
+	app.animCtrl.AddTrack("b.gpx");
 
 	if (initMainApp(&app, cfg)) {
 		/* initialization succeeded, enter the main loop */
