@@ -19,9 +19,9 @@ struct transformParam {
 
 struct lineParam {
 	GLfloat colorBase[4];
-	GLfloat colorGradient[3][4];
+	GLfloat colorGradient[4][4];
 	GLfloat distCoeff[4];
-	GLfloat lineWidths[2];
+	GLfloat lineWidths[4];
 };
 
 } // namespace ubo
@@ -63,7 +63,13 @@ CVis::CVis() :
 	colorGradient[2][2] = 0.0f;
 	colorGradient[2][3] = 1.0f;
 
+	colorGradient[3][0] = 1.0f;
+	colorGradient[3][1] = 1.0f;
+	colorGradient[3][2] = 1.0f;
+	colorGradient[3][3] = 1.0f;
+
 	trackWidth = 1.0f;
+	trackPointWidth = 1.0f;
 	neighborhoodWidth = 3.0f;
 
 	for (int i=0; i<SSBO_COUNT; i++) {
@@ -149,6 +155,7 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h)
 		{ "shaders/simple.vs", "shaders/simple.fs" },
 		{ "shaders/track.vs", "shaders/track.fs"},
 		{ "shaders/line.vs", "shaders/line.fs"},
+		{ "shaders/point.vs", "shaders/point.fs"},
 		{ "shaders/fullscreen.vs", "shaders/blend.fs"},
 	};
 
@@ -199,7 +206,7 @@ bool CVis::InitializeUBO(int i)
 			size = sizeof(ubo::lineParam);
 			ptr = &lineParam;
 			memcpy(lineParam.colorBase, colorBase, 4*sizeof(GLfloat));
-			memcpy(lineParam.colorGradient, colorGradient, 3*4*sizeof(GLfloat));
+			memcpy(lineParam.colorGradient, colorGradient, 4*4*sizeof(GLfloat));
 			lineParam.distCoeff[0] = 1.0f;
 			lineParam.distCoeff[1] = 0.0f;
 			lineParam.distCoeff[2] = 1.0f;
@@ -207,6 +214,8 @@ bool CVis::InitializeUBO(int i)
 			// TODO XXXXXXXXXX
 			lineParam.lineWidths[0] = 0.05f;
 			lineParam.lineWidths[1] = 0.02f;
+			lineParam.lineWidths[2] = 0.02f;
+			lineParam.lineWidths[3] = 0.02f;
 			break;
 		default:
 			gpxutil::warn("invalid UBO idx %d", i);
@@ -286,14 +295,17 @@ void CVis::DrawTrack(float upTo)
 
 	if (vertexCount > 0) {
 		size_t cnt;
+		bool drawPoint;
 		if (upTo < 0.0f) {
 			upTo = (float)vertexCount;
 			cnt = vertexCount-1;
+			drawPoint = false;
 		} else {
 			cnt = (size_t)(upTo+1);
 			if (cnt >= vertexCount) {
 				cnt = vertexCount-1;
 			}
+			drawPoint = true;
 		}
 
 		glUseProgram(program[PROG_LINE_TRACK]);
@@ -310,6 +322,14 @@ void CVis::DrawTrack(float upTo)
 		glBindTexture(GL_TEXTURE_2D, tex[FB_NEIGHBORHOOD]);
 		glUniform1f(1, upTo);
 		glDrawArrays(GL_TRIANGLES, 0, 18*cnt);
+
+		if (drawPoint) {
+			glUseProgram(program[PROG_POINT_TRACK]);
+			glUniform1f(1, upTo);
+			//glBlendEquation(GL_FUNC_ADD);
+			//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDrawArrays(GL_TRIANGLES, 0, 6);
+		}
 	}
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -420,8 +440,8 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	vertices.clear();
 	vertices.push_back(0.0f);
 	vertices.push_back(0.0f);
-	vertices.push_back(0.0f);
-	vertices.push_back(1.0f);
+	vertices.push_back(0.75f);
+	vertices.push_back(0.5f);
 	vertices.push_back(1.0f);
 	vertices.push_back(1.0f);
 	vis.SetPolygon(vertices);

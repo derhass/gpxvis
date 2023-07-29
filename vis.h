@@ -57,6 +57,7 @@ class CVis {
 			PROG_LINE_SIMPLE,
 			PROG_LINE_TRACK,
 			PROG_LINE_NEIGHBORHOOD,
+			PROG_POINT_TRACK,
 			PROG_FULLSCREEN_BLEND,
 			PROG_COUNT // end marker
 		} TProgram;
@@ -68,9 +69,10 @@ class CVis {
 
 		GLfloat colorBackground[4];
 		GLfloat colorBase[4];
-		GLfloat colorGradient[3][4];
-		GLfloat neighborhoodWidth;
+		GLfloat colorGradient[4][4];
 		GLfloat trackWidth;
+		GLfloat trackPointWidth;
+		GLfloat neighborhoodWidth;
 
 		GLuint vaoEmpty;
 		GLuint ssbo[SSBO_COUNT];

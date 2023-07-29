@@ -5,9 +5,9 @@ layout(location=0) out vec4 color;
 layout(std140, binding=1) uniform lineParamUBO
 {
 	vec4 colorBase;
-	vec4 colorGradient[3];
+	vec4 colorGradient[4];
 	vec4 distCoeff;
-	vec2 lineWidths;
+	vec4 lineWidths;
 } lineParam;
 
 void main()
