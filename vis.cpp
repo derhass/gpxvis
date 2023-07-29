@@ -278,27 +278,39 @@ void CVis::SetPolygon(const std::vector<GLfloat>& vertices2D)
 
 void CVis::DrawTrack(float upTo)
 {
-	if (upTo < 0.0f) {
-		upTo = (float)vertexCount;
-	}
-
-	glViewport(0,0,width,height);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_TRACK]);
-	glUseProgram(program[PROG_LINE_TRACK]);
+	glViewport(0,0,width,height);
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 	glBindVertexArray(vaoEmpty);
 
-	glBlendEquation(GL_MAX);
-	glBlendFunc(GL_ONE, GL_ONE);
-	glEnable(GL_BLEND);
+	if (vertexCount > 0) {
+		size_t cnt;
+		if (upTo < 0.0f) {
+			upTo = (float)vertexCount;
+			cnt = vertexCount-1;
+		} else {
+			cnt = (size_t)(upTo+1);
+			if (cnt >= vertexCount) {
+				cnt = vertexCount-1;
+			}
+		}
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+		glUseProgram(program[PROG_LINE_TRACK]);
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, tex[FB_NEIGHBORHOOD]);
-	glUniform1f(1, upTo);
-	glDrawArrays(GL_TRIANGLES, 0, 18*(vertexCount-1));
+		glBlendEquation(GL_MAX);
+		glBlendFunc(GL_ONE, GL_ONE);
+		glEnable(GL_BLEND);
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
+		glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
+		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, tex[FB_NEIGHBORHOOD]);
+		glUniform1f(1, upTo);
+		glDrawArrays(GL_TRIANGLES, 0, 18*cnt);
+	}
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glUseProgram(program[PROG_FULLSCREEN_BLEND]);
@@ -404,12 +416,16 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	tracks[1].GetVertices(false, offset, scale, vertices);
 	vis.SetPolygon(vertices);
 
+	/*
 	vertices.clear();
 	vertices.push_back(0.0f);
 	vertices.push_back(0.0f);
+	vertices.push_back(0.0f);
+	vertices.push_back(1.0f);
 	vertices.push_back(1.0f);
 	vertices.push_back(1.0f);
 	vis.SetPolygon(vertices);
+	*/
 
 	return true;
 }
@@ -423,7 +439,7 @@ void CAnimController::Draw()
 {
 	static float xxx = 0.0f;
 	vis.DrawTrack(xxx);
-	xxx+= 0.001f;
+	xxx+= 1.5f;
 }
 
 } // namespace gpxvis
