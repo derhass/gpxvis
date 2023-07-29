@@ -32,22 +32,36 @@ class CVis {
 
 	private:
 		typedef enum {
-			FB_FIRST = 0,
-			FB_BACKGROUND = FB_FIRST,
+			FB_BACKGROUND,
 			FB_NEIGHBORHOOD,
-
-			FB_COUNT
+			FB_COUNT // end marker
 		} TFramebuffer;
+
+		typedef enum {
+			UBO_TRANSFORM,
+			UBO_LINE,
+			UBO_COUNT // end marker
+		} TUBO;
+
 		size_t bufferVertexCount;
 		size_t vertexCount;
 		GLsizei width;
 		GLsizei height;
+
+		GLfloat colorBackground[4];
+		GLfloat colorBase[4];
+		GLfloat colorGradient[3][4];
+		GLfloat neighborhoodWidth;
+		GLfloat trackWidth;
 
 		GLuint vaoEmpty;
 		GLuint ssboLine;
 		GLuint programLine;
 		GLuint fbo[FB_COUNT];
 		GLuint tex[FB_COUNT];
+		GLuint ubo[UBO_COUNT];
+
+		bool InitializeUBO(int i);
 };
 
 /****************************************************************************

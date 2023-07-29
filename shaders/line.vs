@@ -5,6 +5,19 @@ layout(std430, binding=0) readonly buffer pointsBuffer
 	vec2 point[];
 } points;
 
+layout(std140, binding=0) uniform transformParamUBO
+{
+	vec4 scale_offset;
+} transformParam;
+
+layout(std140, binding=1) uniform lineParamUBO
+{
+	vec4 colorBase;
+	vec4 colorGradient[3];
+	vec4 distCoeff;
+	vec2 lineWidths;
+} lineParam;
+
 out vec2 lineCoord;
 
 void main()
@@ -41,11 +54,11 @@ void main()
 	}
 	lineCoord = vertex;
 
-	vertex = width * vertex;
+	vertex = lineParam.lineWidths.x * vertex;
 
 	basePoint = basePoint + vertex.x * t + vertex.y * n;
 
-	gl_Position = vec4(2.0*basePoint - vec2(1.0), 0, 1);
+	gl_Position = vec4(transformParam.scale_offset.xy * basePoint + transformParam.scale_offset.zw, 0, 1);
 
 
 }

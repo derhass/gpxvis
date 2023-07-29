@@ -1,8 +1,30 @@
 #include "vis.h"
 
+#include <string.h>
+
 #include "util.h"
 
 namespace gpxvis {
+
+namespace ubo {
+
+/****************************************************************************
+ * UBO DEFINITION                                                           *
+ ****************************************************************************/
+
+struct transformParam {
+	GLfloat scale_offset[4];
+};
+
+struct lineParam {
+	GLfloat colorBase[4];
+	GLfloat colorGradient[3][4];
+	GLfloat distCoeff[4];
+	GLfloat lineWidths[2];
+};
+
+} // namespace ubo
+
 
 /****************************************************************************
  * VISUALIZE A SINGLE POLYGON, MIX IT WITH THE HISTORY                      *
@@ -17,9 +39,41 @@ CVis::CVis() :
 	ssboLine(0),
 	programLine(0)
 {
+	colorBackground[0] = 0.0f;
+	colorBackground[1] = 0.0f;
+	colorBackground[2] = 0.0f;
+	colorBackground[3] = 0.0f;
+
+	colorBase[0] = 1.0f;
+	colorBase[1] = 1.0f;
+	colorBase[2] = 1.0f;
+	colorBase[3] = 1.0f;
+
+	colorGradient[0][0] = 1.0f;
+	colorGradient[0][1] = 0.0f;
+	colorGradient[0][2] = 0.0f;
+	colorGradient[0][3] = 1.0f;
+
+	colorGradient[1][0] = 1.0f;
+	colorGradient[1][1] = 1.0f;
+	colorGradient[1][2] = 0.0f;
+	colorGradient[1][3] = 1.0f;
+
+	colorGradient[2][0] = 0.0f;
+	colorGradient[2][1] = 1.0f;
+	colorGradient[2][2] = 0.0f;
+	colorGradient[2][3] = 1.0f;
+
+	trackWidth = 1.0f;
+	neighborhoodWidth = 3.0f;
+
 	for (int i=0; i<FB_COUNT; i++) {
 		fbo[i] = 0;
 		tex[i] = 0;
+	}
+
+	for (int i=0; i<UBO_COUNT; i++) {
+		ubo[i] = 0;
 	}
 }
 
@@ -52,11 +106,12 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h)
 
 	for (int i=0; i<FB_COUNT; i++) {
 		if (!tex[i]) {
+			GLenum format = (i == FB_NEIGHBORHOOD)? GL_R8:GL_RGBA8;
 			glGenTextures(1, &tex[i]);
 			glBindTexture(GL_TEXTURE_2D, tex[i]);
-			glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, w, h);
+			glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
 			glBindTexture(GL_TEXTURE_2D, 0);
-			gpxutil::info("created texture %u %ux%u (frambeuffer idx %d color attachment)", tex[i], (unsigned)w, (unsigned)h, i);
+			gpxutil::info("created texture %u %ux%u fmt 0x%x (frambeuffer idx %d color attachment)", tex[i], (unsigned)w, (unsigned)h, (unsigned)format, i);
 		}
 
 		if (!fbo[i]) {
@@ -72,8 +127,64 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h)
 			gpxutil::info("created FBO %u (frambeuffer idx %d)", fbo[i], i);
 		}
 	}
+
 	width = w;
 	height = h;
+	
+	for (int i=0; i<UBO_COUNT; i++) {
+		if (!InitializeUBO(i)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+bool CVis::InitializeUBO(int i)
+{
+	GLsizeiptr size=0;
+	void *ptr = NULL;
+
+	if (ubo[i]) {
+		gpxutil::info("destroying buffer %u (UBO idx %d)", ubo[i], i);
+		glDeleteBuffers(1, &ubo[i]);
+		ubo[i] = 0;
+	}
+
+	glGenBuffers(1, &ubo[i]);
+	glBindBuffer(GL_UNIFORM_BUFFER, ubo[i]);
+
+	ubo::transformParam transformParam;
+	ubo::lineParam lineParam;
+
+	switch(i) {
+		case UBO_TRANSFORM:
+			size = sizeof(ubo::transformParam);
+			ptr = &transformParam;
+			transformParam.scale_offset[0] = 2.0f;
+			transformParam.scale_offset[1] = 2.0f;
+			transformParam.scale_offset[2] =-1.0f;
+			transformParam.scale_offset[3] =-1.0f;
+			break;
+		case UBO_LINE:
+			size = sizeof(ubo::lineParam);
+			ptr = &lineParam;
+			memcpy(lineParam.colorBase, colorBase, 4*sizeof(GLfloat));
+			memcpy(lineParam.colorGradient, colorGradient, 3*4*sizeof(GLfloat));
+			lineParam.distCoeff[0] = 1.0f;
+			lineParam.distCoeff[1] = 0.0f;
+			lineParam.distCoeff[2] = 1.0f;
+			lineParam.distCoeff[3] = 0.0f;
+			// TODO XXXXXXXXXX
+			lineParam.lineWidths[0] = 0.1f;
+			lineParam.lineWidths[1] = 0.1f;
+			break;
+		default:
+			gpxutil::warn("invalid UBO idx %d", i);
+			return false;
+	}
+	glBufferStorage(GL_UNIFORM_BUFFER, size, ptr, 0);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	gpxutil::info("created buffer %u (UBO idx %d) size %u", ubo[i], i, (unsigned)size);
 	return true;
 }
 
@@ -106,6 +217,13 @@ void CVis::DropGL()
 			tex[i] = 0;
 		}
 	}
+	for (int i=0; i<UBO_COUNT; i++) {
+		if (ubo[i]) {
+			gpxutil::info("destroying buffer %u (UBO idx %d)", ubo[i], i);
+			glDeleteBuffers(1, &ubo[i]);
+			ubo[i] = 0;
+		}
+	}
 	width = 0;
 	height = 0;
 }
@@ -134,6 +252,8 @@ void  CVis::Draw()
 	glEnable(GL_BLEND);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssboLine);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
 	glDrawArrays(GL_TRIANGLES, 0, 18*(vertexCount-1));
 }
 
