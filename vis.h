@@ -35,6 +35,8 @@ class CVis {
 		void AddToBackground();
 		void MixTrackAndBackground(float factor);
 
+		void Clear();
+
 		GLsizei GetWidth() const {return width;}
 		GLsizei GetHeight() const {return height;}
 		GLuint  GetImageFBO() const {return fbo[FB_FINAL];}
@@ -109,8 +111,11 @@ class CAnimController {
 
 	private:
 		typedef enum {
+			PHASE_INIT,
 			PHASE_TRACK,
+			PHASE_FADEOUT_INIT,
 			PHASE_FADEOUT,
+			PHASE_SWITCH_TRACK,
 		} TPhase;
 
 		size_t        curTrack;
@@ -118,10 +123,21 @@ class CAnimController {
 		double        curTime;
 		TPhase        curPhase;
 
+		double        animationTime;
+		double        phaseEntryTime;
+
+		double        offset[3];
+		double        scale[3];
+
 		CVis  vis;
 		gpxutil::CAABB aabb;
 		std::vector<gpx::CTrack> tracks;
 
+		void   UpdateTrack(size_t idx);
+
+		double GetAnimationTime(double deltaTime) const;
+		float  GetTrackAnimation(TPhase& nextPhase);
+		float  GetFadeoutAnimation(TPhase& nextPhase);
 };
 
 } // namespace gpxvis
