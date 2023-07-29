@@ -433,7 +433,7 @@ static void mainLoop(MainApp *app, const AppConfig& cfg)
  * SIMPLE COMMAND LINE PARSER                                               *
  ****************************************************************************/
 
-void parseCommandlineArgs(AppConfig& cfg, int argc, char**argv)
+void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 {
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--fullscreen")) {
@@ -443,20 +443,29 @@ void parseCommandlineArgs(AppConfig& cfg, int argc, char**argv)
 			cfg.decorated = false;
 		} else if (!strcmp(argv[i], "--gl-debug-sync")) {
 			cfg.debugOutputSynchronous = true;
-		}
-		else if (i + 1 < argc) {
-			if (!strcmp(argv[i], "--width")) {
-				cfg.width = (int)strtol(argv[++i], NULL, 10);
-			} else if (!strcmp(argv[i], "--height")) {
-				cfg.height = (int)strtol(argv[++i], NULL, 10);
-			} else if (!strcmp(argv[i], "--x")) {
-				cfg.posx = (int)strtol(argv[++i], NULL, 10);
-			} else if (!strcmp(argv[i], "--y")) {
-				cfg.posy = (int)strtol(argv[++i], NULL, 10);
-			} else if (!strcmp(argv[i], "--frameCount")) {
-				cfg.frameCount = (unsigned)strtoul(argv[++i], NULL, 10);
-			} else if (!strcmp(argv[i], "--gl-debug-level")) {
-				cfg.debugOutputLevel = (DebugOutputLevel)strtoul(argv[++i], NULL, 10);
+		} else {
+			bool unhandled = false;
+			if (i + 1 < argc) {
+				if (!strcmp(argv[i], "--width")) {
+					cfg.width = (int)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--height")) {
+					cfg.height = (int)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--x")) {
+					cfg.posx = (int)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--y")) {
+					cfg.posy = (int)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--frameCount")) {
+					cfg.frameCount = (unsigned)strtoul(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--gl-debug-level")) {
+					cfg.debugOutputLevel = (DebugOutputLevel)strtoul(argv[++i], NULL, 10);
+				} else {
+					unhandled = true;
+				}
+			} else {
+				unhandled = true;
+			}
+			if (unhandled) {
+				app.animCtrl.AddTrack(argv[i]);
 			}
 		}
 	}
@@ -471,10 +480,7 @@ int main (int argc, char **argv)
 	AppConfig cfg;	/* the generic configuration */
 	MainApp app;	/* the cube application stata stucture */
 
-	parseCommandlineArgs(cfg, argc, argv);
-
-	app.animCtrl.AddTrack("a.gpx");
-	app.animCtrl.AddTrack("b.gpx");
+	parseCommandlineArgs(cfg, app, argc, argv);
 
 	if (initMainApp(&app, cfg)) {
 		/* initialization succeeded, enter the main loop */

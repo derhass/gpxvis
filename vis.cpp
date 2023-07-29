@@ -529,7 +529,7 @@ double CAnimController::GetAnimationTime(double deltaTime) const
 float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 {
 	double t = animationTime - phaseEntryTime;
-	double x = t * 3600.0;
+	double x = t * 3.0 * 3600.0;
 	if (x >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
 		x = tracks[curTrack].GetDuration();
