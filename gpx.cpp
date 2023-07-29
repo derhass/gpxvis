@@ -250,7 +250,7 @@ float CTrack::GetPointByDuration(double duration) const
 	if (duration <= 0.0) {
 		return 0.0f;
 	}
-	if (duration >= totalLen) {
+	if (duration >= totalDuration) {
 		return (float)(cnt-1);
 	}
 
