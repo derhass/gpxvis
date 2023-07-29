@@ -301,6 +301,7 @@ void CVis::DrawTrack(size_t upTo, bool withFinish)
 	GLuint texs[2] = {tex[FB_BACKGROUND], tex[FB_TRACK]};
 	glBindTextures(1,2,texs);
 	glDisable(GL_BLEND);
+	glUniform1f(2, 1.0f);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 

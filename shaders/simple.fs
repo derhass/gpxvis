@@ -1,6 +1,6 @@
 #version 430 core
 
-out vec4 color;
+layout(location=0) out vec4 color;
 
 layout(std140, binding=1) uniform lineParamUBO
 {

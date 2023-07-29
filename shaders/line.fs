@@ -1,7 +1,7 @@
 #version 430 core
 
 in vec2 lineCoord;
-out vec4 color;
+layout(location=0) out vec4 color;
 
 layout(std140, binding=1) uniform lineParamUBO
 {
