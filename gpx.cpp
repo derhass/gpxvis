@@ -1,5 +1,6 @@
 #include "gpx.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +26,43 @@ static double getDbl(const char *str)
 		str++;
 	}
 	return strtod(str, NULL);
+}
+
+static int getInt(const char *str, const char*& next)
+{
+	if (!str) {
+		next = NULL;
+	}
+	while(!isdigit(*str)) {
+		if (!*str) {
+			next = str;
+			return 0;
+		}
+		str++;
+	}
+	char *n=NULL;
+	unsigned long int val = strtoul(str, &n, 10);
+	next = n;
+	return (int)val;
+}
+
+static time_t getTime(const char *str)
+{
+	time_t val = (time_t)0;
+	if (str) {
+		struct tm ts;
+		ts.tm_year = getInt(str, str);
+		ts.tm_mon = getInt(str, str)-1;
+		ts.tm_mday = getInt(str, str);
+		ts.tm_hour = getInt(str, str);
+		ts.tm_min = getInt(str, str);
+		ts.tm_sec = getInt(str, str);
+		val = mktime(&ts);
+		if (val == (time_t)-1) {
+			val = (time_t)0;
+		}
+	}
+	return val;
 }
 
 bool CTrack::Load(const char *filename)
@@ -73,6 +111,7 @@ bool CTrack::Load(const char *filename)
 			pt.x = getDbl(lon);
 			pt.y = getDbl(lat);
 			pt.h = getDbl(ele);
+			pt.timestamp = getTime(time);
 
 			aabb.Add(pt.x,pt.y,pt.h);
 
@@ -82,7 +121,20 @@ bool CTrack::Load(const char *filename)
 				double dy = pt.y - points[cnt-1].y;
 				double len = sqrt(dx*dx + dy*dy);
 				pt.len = len;
+				pt.posOnTrack = totalLen;
 				totalLen += len;
+				if (points[cnt-1].timestamp > pt.timestamp) {
+					gpxutil::warn("gpx file '%s': time warp deteced at point %llu", filename, (unsigned long long)cnt);
+					pt.timestamp = points[cnt-1].timestamp;
+				}
+				pt.duration = (double)difftime(pt.timestamp, points[cnt-1].timestamp);
+				pt.timeOnTrack = totalDuration;
+				totalDuration += pt.duration;
+			} else {
+				pt.len = 0.0;
+				pt.duration = 0.0;
+				pt.posOnTrack = 0.0;
+				pt.timeOnTrack = 0.0;
 			}
 
 			points.push_back(pt);
@@ -92,8 +144,8 @@ bool CTrack::Load(const char *filename)
 	}
 	free(source);
 	const double *a = aabb.Get();
-	gpxutil::info("gpx file '%s': %llu points, total len: %f, aabb: (%f %f %f) - (%f %f %f)",
-			filename, (unsigned long long)GetCount(), totalLen,
+	gpxutil::info("gpx file '%s': %llu points, total len: %f, duration: %f, aabb: (%f %f %f) - (%f %f %f)",
+			filename, (unsigned long long)GetCount(), totalLen, totalDuration,
 			a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
 
 
@@ -105,6 +157,7 @@ void CTrack::Reset()
 	points.clear();
 	aabb.Reset();
 	totalLen = 0.0;
+	totalDuration = 0.0;
 }
 
 void CTrack::GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const
@@ -116,6 +169,123 @@ void CTrack::GetVertices(bool withZ, const double *origin, const double *scale, 
 			data.push_back((points[i].h - origin[2])*scale[2]);
 		}
 	}
+}
+
+float CTrack::GetPointByIndex(double idx) const
+{
+	size_t cnt = GetCount();
+	double maxIdx = (double)cnt - 1.0;
+
+	if (cnt < 2) {
+		return 0.0f;
+	}
+
+	if (idx <= 0.0) {
+		return 0.0f;
+	}
+	if (idx >= maxIdx) {
+		return (float)maxIdx;
+	}
+	return (float)idx;
+
+}
+
+float CTrack::GetPointByDistance(double distance) const
+{
+	size_t cnt = GetCount();
+
+	if (cnt < 2) {
+		return 0.0f;
+	}
+
+	if (distance <= 0.0) {
+		return 0.0f;
+	}
+	if (distance >= totalLen) {
+		return (float)(cnt-1);
+	}
+
+	size_t window[2] = {0, cnt-1};
+	//gpxutil::info("searching: %f",distance);
+	while (window[0]+1  < window[1]) {
+		size_t center = window[0] + (window[1] - window[0])/2;
+		//gpxutil::info("XXX %u %u %u %f %f %f",(unsigned)window[0],(unsigned)window[1],(unsigned)center,points[window[0]].posOnTrack,points[window[1]].posOnTrack,points[center].posOnTrack);
+		if (points[center].posOnTrack < distance) {
+			window[0] = center;
+		} else if (points[center].posOnTrack > distance) {
+			window[1] = center;
+		}
+	}
+	//gpxutil::info("XXX %u %u %f %f",(unsigned)window[0],(unsigned)window[1],points[window[0]].posOnTrack,points[window[1]].posOnTrack);
+
+	if (points[window[0]].posOnTrack > distance || points[window[1]].posOnTrack < distance) {
+		return (float)(cnt-1);
+	}
+	assert(points[window[0]].posOnTrack <= distance);
+	assert(points[window[1]].posOnTrack >= distance);
+
+	distance -= points[window[0]].posOnTrack;
+	float rel;
+	if (points[window[0]].len > 0.0) {
+		rel = (float)(distance / points[window[0]].len);
+		if (rel < 0.0f) {
+			rel = 0.0f;
+		} else if (rel > 0.999999f) {
+			rel = 0.999999f;
+		}
+	} else {
+		rel = 0.0f;
+	}
+	return (float)window[0] + rel;
+}
+
+float CTrack::GetPointByDuration(double duration) const
+{
+	size_t cnt = GetCount();
+
+	if (cnt < 2) {
+		return 0.0f;
+	}
+
+	if (duration <= 0.0) {
+		return 0.0f;
+	}
+	if (duration >= totalLen) {
+		return (float)(cnt-1);
+	}
+
+	size_t window[2] = {0, cnt-1};
+	//gpxutil::info("searching: %f",duration);
+	while (window[0]+1  < window[1]) {
+		size_t center = window[0] + (window[1] - window[0])/2;
+		//gpxutil::info("XXX %u %u %u %f %f %f",(unsigned)window[0],(unsigned)window[1],(unsigned)center,points[window[0]].timeOnTrack,points[window[1]].timeOnTrack,points[center].timeOnTrack);
+		if (points[center].timeOnTrack < duration) {
+			window[0] = center;
+		} else if (points[center].timeOnTrack > duration) {
+			window[1] = center;
+		}
+	}
+	//gpxutil::info("XXX %u %u %f %f",(unsigned)window[0],(unsigned)window[1],points[window[0]].timeOnTrack,points[window[1]].timeOnTrack);
+
+	if (points[window[0]].timeOnTrack > duration || points[window[1]].timeOnTrack < duration) {
+		return (float)(cnt-1);
+	}
+	assert(points[window[0]].timeOnTrack <= duration);
+	assert(points[window[1]].timeOnTrack >= duration);
+
+	duration -= points[window[0]].timeOnTrack;
+	float rel;
+	if (points[window[0]].len > 0.0) {
+		rel = (float)(duration / points[window[0]].len);
+		if (rel < 0.0f) {
+			rel = 0.0f;
+		} else if (rel > 0.999999f) {
+			rel = 0.999999f;
+		}
+	} else {
+		rel = 0.0f;
+	}
+	return (float)window[0] + rel;
 }
 
 } // namespace gpx

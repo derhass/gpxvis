@@ -436,6 +436,9 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	tracks[1].GetVertices(false, offset, scale, vertices);
 	vis.SetPolygon(vertices);
 
+	for (double j=0.0; j<=1.0; j+=(1.0/1024.0)) {
+		gpxutil::info("XXX %f %f",j, tracks[0].GetPointByDistance(j * tracks[0].GetLength()));
+	}
 	/*
 	vertices.clear();
 	vertices.push_back(0.0f);

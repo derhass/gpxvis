@@ -15,6 +15,9 @@ struct TPoint {
 	double y;
 	double h;
 	double len;
+	double duration;
+	double posOnTrack;
+	double timeOnTrack;
 	time_t timestamp;
 };
 
@@ -29,11 +32,17 @@ class CTrack {
 		void   GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const;
 		const gpxutil::CAABB& GetAABB() const {return aabb;}
 		double GetLength() const {return totalLen;}
+		double GetDuration() const {return totalDuration;}
+
+		float  GetPointByIndex(double idx) const;
+		float  GetPointByDistance(double distance) const;
+		float  GetPointByDuration(double duration) const;
 
 	private:
 		std::vector<TPoint> points;
 		gpxutil::CAABB      aabb;
 		double              totalLen;
+		double              totalDuration;
 };
 
 } // namespace gpx
