@@ -331,16 +331,6 @@ void CVis::DrawTrack(float upTo)
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 		}
 	}
-
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glUseProgram(program[PROG_FULLSCREEN_BLEND]);
-	GLuint texs[2] = {tex[FB_BACKGROUND], tex[FB_TRACK]};
-	glBindTextures(1,2,texs);
-	glDisable(GL_BLEND);
-	glUniform1f(2, 1.0f);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-
-
 }
 
 void CVis::DrawSimple()
@@ -379,8 +369,19 @@ void CVis::AddToBackground()
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
 	DrawNeighborhood();
+}
 
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+void CVis::MixTrackAndBackground(float factor)
+{
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_FINAL]);
+	glViewport(0,0,width,height);
+	glBindVertexArray(vaoEmpty);
+	glUseProgram(program[PROG_FULLSCREEN_BLEND]);
+	GLuint texs[2] = {tex[FB_BACKGROUND], tex[FB_TRACK]};
+	glBindTextures(1,2,texs);
+	glDisable(GL_BLEND);
+	glUniform1f(2, factor);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
 /****************************************************************************
@@ -388,7 +389,10 @@ void CVis::AddToBackground()
  ****************************************************************************/
 
 CAnimController::CAnimController() :
-	curTrack(0)
+	curTrack(0),
+	curFrame(0),
+	curTime(0.0),
+	curPhase(PHASE_TRACK)
 {
 }
 
@@ -436,10 +440,10 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	tracks[1].GetVertices(false, offset, scale, vertices);
 	vis.SetPolygon(vertices);
 
+	/*
 	for (double j=0.0; j<=1.0; j+=(1.0/1024.0)) {
 		gpxutil::info("XXX %f %f",j, tracks[0].GetPointByDistance(j * tracks[0].GetLength()));
 	}
-	/*
 	vertices.clear();
 	vertices.push_back(0.0f);
 	vertices.push_back(0.0f);
@@ -458,11 +462,23 @@ void CAnimController::DropGL()
 	vis.DropGL();
 }
 
-void CAnimController::Draw()
+void CAnimController::UpdateStep(double timeDelta)
 {
+	curFrame++;
+	curTime += timeDelta;
+
 	static float xxx = 0.0f;
-	vis.DrawTrack(xxx);
+	/*
+	switch(curPhase) {
+		case PHASE_TRACK:
+			vis.DrawTrack(xxx);
+			vis.MixTrackAndBackground(1.0f);
+			break;
+	}*/
+			vis.DrawTrack(xxx);
+			vis.MixTrackAndBackground(1.0f);
 	xxx+= 1.5f;
+
 }
 
 } // namespace gpxvis

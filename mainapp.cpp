@@ -346,7 +346,19 @@ static void
 drawScene(MainApp *app)
 {
 	// TODO ...
-	app->animCtrl.Draw();
+	app->animCtrl.UpdateStep(app->timeDelta);
+
+	/* set the viewport (might have changed since last iteration) */
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glViewport(0, 0, app->width, app->height);
+
+	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
+
+	const gpxvis::CVis& vis = app->animCtrl.GetVis();
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
+	glBlitFramebuffer(0,0,vis.GetWidth(), vis.GetHeight(), 0,0,app->width, app->height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
 
 
@@ -355,12 +367,6 @@ drawScene(MainApp *app)
 static void
 displayFunc(MainApp *app, const AppConfig& cfg)
 {
-	/* set the viewport (might have changed since last iteration) */
-	glViewport(0, 0, app->width, app->height);
-
-	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); /* clear the buffers */
-
 	drawScene(app);
 
 	/* finished with drawing, swap FRONT and BACK buffers to show what we

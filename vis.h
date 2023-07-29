@@ -33,6 +33,11 @@ class CVis {
 		void DrawNeighborhood();
 
 		void AddToBackground();
+		void MixTrackAndBackground(float factor);
+
+		GLsizei GetWidth() const {return width;}
+		GLsizei GetHeight() const {return height;}
+		GLuint  GetImageFBO() const {return fbo[FB_FINAL];}
 
 	private:
 		typedef enum {
@@ -44,6 +49,7 @@ class CVis {
 			FB_BACKGROUND,
 			FB_NEIGHBORHOOD,
 			FB_TRACK,
+			FB_FINAL,
 			FB_COUNT // end marker
 		} TFramebuffer;
 
@@ -96,11 +102,21 @@ class CAnimController {
 		bool Prepare(GLsizei width, GLsizei height);
 		void DropGL();
 
-		void Draw();
+		void UpdateStep(double timeDelta);
+
+		const CVis& GetVis() const {return vis;}
 
 
 	private:
-		size_t curTrack;
+		typedef enum {
+			PHASE_TRACK,
+			PHASE_FADEOUT,
+		} TPhase;
+
+		size_t        curTrack;
+		unsigned long curFrame;
+		double        curTime;
+		TPhase        curPhase;
 
 		CVis  vis;
 		gpxutil::CAABB aabb;
