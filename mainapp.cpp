@@ -350,14 +350,32 @@ drawScene(MainApp *app)
 
 	/* set the viewport (might have changed since last iteration) */
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	glViewport(0, 0, app->width, app->height);
+	//glViewport(0, 0, app->width, app->height);
 
 	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
 
 	const gpxvis::CVis& vis = app->animCtrl.GetVis();
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
-	glBlitFramebuffer(0,0,vis.GetWidth(), vis.GetHeight(), 0,0,app->width, app->height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+	float winAspect = (float)app->width / (float)app->height;
+	GLsizei w = vis.GetWidth();
+	GLsizei h = vis.GetHeight();
+	float imgAspect = (float)w/(float)h;
+	if (winAspect > imgAspect) {
+		float scale = (float)app->height / (float)h;
+		GLsizei newWidth = (GLsizei)(scale * w + 0.5f);
+		GLsizei offset = (app->width - newWidth) / 2;
+
+		glBlitFramebuffer(0,0,w,h, offset,0,offset+newWidth, app->height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	} else {
+		float scale = (float)app->width / (float)w;
+		GLsizei newHeight = (GLsizei)(scale * h + 0.5f);
+		GLsizei offset = (app->height- newHeight) / 2;
+
+		glBlitFramebuffer(0,0,w,h, 0,offset,app->width, offset+newHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	}
+
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
 

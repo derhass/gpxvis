@@ -409,4 +409,14 @@ void CAABB::MergeWith(const CAABB& other)
 	}
 }
 
+double CAABB::GetAspect() const
+{
+	double w = aabb[3]-aabb[0];
+	double h = aabb[4]-aabb[1];
+	if (w > 0.0 || h > 0.0) {
+		return w/h;
+	}
+	return 1.0;
+}
+
 } // namespace gpxutil

@@ -36,6 +36,7 @@ CVis::CVis() :
 	vertexCount(0),
 	width(0),
 	height(0),
+	dataAspect(0),
 	vaoEmpty(0)
 {
 	colorBackground[0] = 0.0f;
@@ -92,8 +93,10 @@ CVis::~CVis()
 	DropGL();
 }
 
-bool CVis::InitializeGL(GLsizei w, GLsizei h)
+bool CVis::InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio)
 {
+	dataAspect = dataAspectRatio;
+
 	if (w != width || h != height) {
 		DropGL();
 	}
@@ -181,14 +184,31 @@ bool CVis::InitializeUBO(int i)
 	ubo::transformParam transformParam;
 	ubo::lineParam lineParam;
 
+	float screenAspect;
+	float tscale[2];
+	screenAspect = (float)width / (float)height;
+	if (dataAspect > 1.0f) {
+		tscale[0] = 1.0f;
+		tscale[1] = dataAspect;
+	} else {
+		tscale[0] = dataAspect;
+		tscale[1] = 1.0f;
+	}
+	if (screenAspect > dataAspect) {
+		tscale[0] *= dataAspect / screenAspect;
+	} else {
+		tscale[1] *= 1.0f / screenAspect;
+	}
+	gpxutil::info("aspect ratios %f %f", screenAspect, dataAspect);
+
 	switch(i) {
 		case UBO_TRANSFORM:
 			size = sizeof(ubo::transformParam);
 			ptr = &transformParam;
-			transformParam.scale_offset[0] = 2.0f;
-			transformParam.scale_offset[1] = 2.0f;
-			transformParam.scale_offset[2] =-1.0f;
-			transformParam.scale_offset[3] =-1.0f;
+			transformParam.scale_offset[0] = 2.0f * tscale[0];
+			transformParam.scale_offset[1] = 2.0f * tscale[1];
+			transformParam.scale_offset[2] =-1.0f * tscale[0];
+			transformParam.scale_offset[3] =-1.0f * tscale[1];
 			transformParam.size[0] = (GLfloat)width;
 			transformParam.size[1] = (GLfloat)height;
 			transformParam.size[2] = 1.0f/transformParam.size[0];
@@ -416,7 +436,19 @@ bool CAnimController::AddTrack(const char *filename)
 
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
-	if (!vis.InitializeGL(width, height)) {
+	gpxutil::CAABB screenAABB = aabb;
+	screenAABB.Enhance(1.05,0.0);
+	screenAABB.GetNormalizeScaleOffset(scale, offset);
+	double dataAspect = screenAABB.GetAspect();
+	if (dataAspect >= 1.0) {
+		scale[1] = scale[0];
+		offset[1] -= (0.5 - 0.5f / dataAspect) / scale[1];
+	} else {
+		scale[0] = scale[1];
+		offset[0] -= (0.5 - 0.5 * dataAspect) / scale[0];
+	}
+
+	if (!vis.InitializeGL(width, height, (float)dataAspect)) {
 		return false;
 	}
 
@@ -425,16 +457,19 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 		return false;
 	}
 
-	gpxutil::CAABB screenAABB = aabb;
-	screenAABB.Enhance(1.05,0.0);
-	screenAABB.GetNormalizeScaleOffset(scale, offset);
-	if (scale[1] < scale[0]) {
-		scale[0] = scale[1];
-	} else {
-		scale[1] = scale[0];
-	}
-
 	UpdateTrack(0);
+
+	std::vector<GLfloat> vertices;
+	gpxutil::CAABB xxx;
+	for(size_t j=0; j<tracks.size(); j++) {
+		vertices.clear();
+		tracks[j].GetVertices(false, offset, scale, vertices);
+		for (size_t k=0; k<vertices.size()/2; k++) {
+			xxx.Add(vertices[k*2],vertices[k*2+1], 0.0);
+		}
+	}
+	const double *q = xxx.Get();
+	gpxutil::info("XXXX %f %f %f %f %f %f",q[0],q[1],q[2],q[3],q[4],q[5]);
 
 	/*
 	std::vector<GLfloat> vertices;

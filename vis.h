@@ -23,7 +23,7 @@ class CVis {
 		CVis& operator=(const CVis& other) = delete;
 		CVis& operator=(CVis&& other) = delete;
 
-		bool InitializeGL(GLsizei w, GLsizei h);
+		bool InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio);
 		void DropGL();
 
 		void SetPolygon(const std::vector<GLfloat>& vertices2D);
@@ -81,6 +81,7 @@ class CVis {
 		GLfloat trackWidth;
 		GLfloat trackPointWidth;
 		GLfloat neighborhoodWidth;
+		float   dataAspect;
 
 		GLuint vaoEmpty;
 		GLuint ssbo[SSBO_COUNT];

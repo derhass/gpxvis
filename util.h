@@ -122,6 +122,7 @@ class CAABB {
 		void GetNormalizeScaleOffset(double scale[3], double offset[3]) const;
 		void Enhance(double relative, double absolute);
 		void MergeWith(const CAABB& other);
+		double GetAspect() const;
 
 	private:
 		double aabb[6];
