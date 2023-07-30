@@ -523,8 +523,8 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	} else {
 		realHeight = (GLsizei)(height * (screenAspect/dataAspect) + 0.5);
 	}
-	realWidth = roundNext(realWidth, 16);
-	realHeight = roundNext(realHeight, 16);
+	realWidth = roundNext(realWidth, 8);
+	realHeight = roundNext(realHeight, 8);
 	gpxutil::info("adjusted rendering resolution from %ux%u (%f) to %ux%u (%f) to match data aspect %f",
 		(unsigned)width, (unsigned)height, screenAspect,
 		(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight, dataAspect);

@@ -59,6 +59,7 @@ bool CImg::WriteTGA(const char *filename) const
 		gpxutil::warn("invalid image, can't save");
 		return false;
 	}
+	stbi_flip_vertically_on_write(1);
 	int res = stbi_write_tga(filename, width, height, channels, data);
 	if (!res) {
 		gpxutil::warn("failed to write image '%s'", filename);
@@ -72,6 +73,7 @@ bool CImg::WritePNG(const char *filename) const
 		gpxutil::warn("invalid image, can't save");
 		return false;
 	}
+	stbi_flip_vertically_on_write(1);
 	int res = stbi_write_png(filename, width, height, channels, data, width*channels);
 	if (!res) {
 		gpxutil::warn("failed to write image '%s'", filename);
