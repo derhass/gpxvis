@@ -21,5 +21,5 @@ void main()
 	float c = lineParam.distCoeff.x * d + lineParam.distCoeff.y;
 	float a = lineParam.distCoeff.z * d + lineParam.distCoeff.w;
 
-	color = lineParam.colorBase * vec4(c,c,c,a);
+	color = vec4(c,c,c,a);
 }

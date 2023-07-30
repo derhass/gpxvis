@@ -44,8 +44,8 @@ struct AppConfig {
 	AppConfig() :
 		posx(100),
 		posy(100),
-		width(800),
-		height(600),
+		width(1920),
+		height(1200),
 		decorated(true),
 		fullscreen(false),
 		frameCount(0),
@@ -312,7 +312,7 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	initGLState(cfg);
 
 	// TODO ...
-	if (!app->animCtrl.Prepare(800,600)) {
+	if (!app->animCtrl.Prepare(app->width,app->height)) {
 		gpxutil::warn("failed to initialize animation controller");
 		return false;
 	}

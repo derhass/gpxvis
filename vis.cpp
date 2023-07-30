@@ -44,9 +44,9 @@ CVis::CVis() :
 	colorBackground[2] = 0.0f;
 	colorBackground[3] = 0.0f;
 
-	colorBase[0] = 1.0f;
-	colorBase[1] = 1.0f;
-	colorBase[2] = 1.0f;
+	colorBase[0] = 0.6f;
+	colorBase[1] = 0.8f;
+	colorBase[2] = 0.8f;
 	colorBase[3] = 1.0f;
 
 	colorGradient[0][0] = 1.0f;
@@ -69,9 +69,9 @@ CVis::CVis() :
 	colorGradient[3][2] = 1.0f;
 	colorGradient[3][3] = 1.0f;
 
-	trackWidth = 1.0f;
-	trackPointWidth = 1.0f;
-	neighborhoodWidth = 3.0f;
+	trackWidth = 3.0f;
+	trackPointWidth = 5.0f;
+	neighborhoodWidth = 2.0f;
 
 	for (int i=0; i<SSBO_COUNT; i++) {
 		ssbo[i] = 0;
@@ -116,8 +116,8 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio)
 			glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 			glBindTexture(GL_TEXTURE_2D, 0);
 			gpxutil::info("created texture %u %ux%u fmt 0x%x (frambeuffer idx %d color attachment)", tex[i], (unsigned)w, (unsigned)h, (unsigned)format, i);
 		}
@@ -186,25 +186,26 @@ bool CVis::InitializeUBO(int i)
 
 	float screenAspect;
 	float tscale[2];
-	screenAspect = (float)width / (float)height;
-	if (dataAspect > 1.0f) {
-		tscale[0] = 1.0f;
-		tscale[1] = dataAspect;
-	} else {
-		tscale[0] = dataAspect;
-		tscale[1] = 1.0f;
-	}
-	if (screenAspect > dataAspect) {
-		tscale[0] *= dataAspect / screenAspect;
-	} else {
-		tscale[1] *= 1.0f / screenAspect;
-	}
-	gpxutil::info("aspect ratios %f %f", screenAspect, dataAspect);
+	float screenSize;
 
 	switch(i) {
 		case UBO_TRANSFORM:
 			size = sizeof(ubo::transformParam);
 			ptr = &transformParam;
+			screenAspect = (float)width / (float)height;
+			if (dataAspect > 1.0f) {
+				tscale[0] = 1.0f;
+				tscale[1] = dataAspect;
+			} else {
+				tscale[0] = dataAspect;
+				tscale[1] = 1.0f;
+			}
+			if (screenAspect > dataAspect) {
+				tscale[0] *= dataAspect / screenAspect;
+			} else {
+				tscale[1] *= 1.0f / screenAspect;
+			}
+			gpxutil::info("aspect ratios %f %f", screenAspect, dataAspect);
 			transformParam.scale_offset[0] = 2.0f * tscale[0];
 			transformParam.scale_offset[1] = 2.0f * tscale[1];
 			transformParam.scale_offset[2] =-1.0f * tscale[0];
@@ -223,11 +224,11 @@ bool CVis::InitializeUBO(int i)
 			lineParam.distCoeff[1] = 0.0f;
 			lineParam.distCoeff[2] = 1.0f;
 			lineParam.distCoeff[3] = 0.0f;
-			// TODO XXXXXXXXXX
-			lineParam.lineWidths[0] = 0.05f;
-			lineParam.lineWidths[1] = 0.02f;
-			lineParam.lineWidths[2] = 0.02f;
-			lineParam.lineWidths[3] = 0.02f;
+			screenSize = (width < height)?(float)width:(float)height;
+			lineParam.lineWidths[0] = (float)neighborhoodWidth / screenSize;
+			lineParam.lineWidths[1] = (float)trackWidth / screenSize;
+			lineParam.lineWidths[2] = (float)trackPointWidth / screenSize;
+			lineParam.lineWidths[3] = (float)trackPointWidth / screenSize;
 			break;
 		default:
 			gpxutil::warn("invalid UBO idx %d", i);
@@ -565,6 +566,7 @@ float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 {
 	double t = animationTime - phaseEntryTime;
 	double x = t * 3.0 * 3600.0;
+	//x = t * 3.0 * 600.0;
 	if (x >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
 		x = tracks[curTrack].GetDuration();

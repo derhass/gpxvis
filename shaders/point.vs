@@ -22,6 +22,7 @@ layout(std140, binding=1) uniform lineParamUBO
 layout(location=1) uniform float upTo;
 
 out vec2 lineCoord;
+out vec2 texCoord;
 
 void main()
 {
@@ -36,4 +37,5 @@ void main()
 	lineCoord = vertex;
 	vec2 basePoint = point + lineParam.lineWidths.zw * vertex;
 	gl_Position = vec4(transformParam.scale_offset.xy * basePoint + transformParam.scale_offset.zw, 0, 1);
+	texCoord = 0.5 * (transformParam.scale_offset.xy * point + transformParam.scale_offset.zw) + 0.5;
 }
