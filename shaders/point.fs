@@ -22,8 +22,9 @@ void main()
 	}
 	d = 1.0 - pow(1.0 - d, 1.5);
 
-	//float nd = 2.0 * clamp(texelFetch(texBackground, ivec2(gl_FragCoord.xy), 0).r, 0.0, 1.99999);
-	//float nd = 2.0 * clamp(textureLod(texBackground, texCoord, 0).r, 0.0, 1.99999);
+	//float ndHere = texelFetch(texBackground, ivec2(gl_FragCoord.xy), 0).r;
+	//float ndLine = textureLod(texBackground, texCoord, 0).r;
+	//float nd = 2.0 * clamp(max(ndHere, ndLine), 0.0, 1.999999);
 	//int sel = int(nd);
 	//vec3 col = mix(lineParam.colorGradient[sel].rgb, lineParam.colorGradient[sel+1].rgb, fract(nd));
 	//col = mix(col, lineParam.colorGradient[3].rgb, d);

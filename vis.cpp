@@ -37,7 +37,8 @@ CVis::CVis() :
 	width(0),
 	height(0),
 	dataAspect(0),
-	vaoEmpty(0)
+	vaoEmpty(0),
+	texTrackDepth(0)
 {
 	colorBackground[0] = 0.0f;
 	colorBackground[1] = 0.0f;
@@ -70,7 +71,7 @@ CVis::CVis() :
 	colorGradient[3][3] = 1.0f;
 
 	trackWidth = 3.0f;
-	trackPointWidth = 5.0f;
+	trackPointWidth = 10.0f;
 	neighborhoodWidth = 2.0f;
 
 	for (int i=0; i<SSBO_COUNT; i++) {
@@ -121,11 +122,28 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio)
 			glBindTexture(GL_TEXTURE_2D, 0);
 			gpxutil::info("created texture %u %ux%u fmt 0x%x (frambeuffer idx %d color attachment)", tex[i], (unsigned)w, (unsigned)h, (unsigned)format, i);
 		}
+		if (i == FB_TRACK) {
+			if (!texTrackDepth) {
+				GLenum format = GL_DEPTH_COMPONENT32F;
+				glGenTextures(1, &texTrackDepth);
+				glBindTexture(GL_TEXTURE_2D, texTrackDepth);
+				glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glBindTexture(GL_TEXTURE_2D, 0);
+				gpxutil::info("created texture %u %ux%u fmt 0x%x (frambeuffer idx %d depth attachment)", texTrackDepth, (unsigned)w, (unsigned)h, (unsigned)format, i);
+			}
+		}
 
 		if (!fbo[i]) {
 			glGenFramebuffers(1, &fbo[i]);
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[i]);
 			glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, tex[i], 0);
+			if (i == FB_TRACK) {
+				glFramebufferTexture(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, texTrackDepth, 0);
+			}
 			GLenum status = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER);
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 			if (status != GL_FRAMEBUFFER_COMPLETE) {
@@ -266,6 +284,13 @@ void CVis::DropGL()
 			glDeleteTextures(1, &tex[i]);
 			tex[i] = 0;
 		}
+		if (i == FB_TRACK) {
+			if (texTrackDepth) {
+				gpxutil::info("destroying texture %u (frambeuffer idx %d depth attachment)", texTrackDepth, i);
+				glDeleteTextures(1, &texTrackDepth);
+				texTrackDepth = 0;
+			}
+		}
 	}
 	for (int i=0; i<UBO_COUNT; i++) {
 		if (ubo[i]) {
@@ -304,7 +329,7 @@ void CVis::DrawTrack(float upTo)
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_TRACK]);
 	glViewport(0,0,width,height);
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(vaoEmpty);
 
 	if (vertexCount > 0) {
@@ -324,20 +349,22 @@ void CVis::DrawTrack(float upTo)
 
 		glUseProgram(program[PROG_LINE_TRACK]);
 
-		glBlendEquation(GL_MAX);
-		glBlendFunc(GL_ONE, GL_ONE);
-		glEnable(GL_BLEND);
+		glDisable(GL_BLEND);
+		glEnable(GL_DEPTH_TEST);
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
 
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, tex[FB_NEIGHBORHOOD]);
+		glBindTextures(0, 1, &tex[FB_NEIGHBORHOOD]);
 		glUniform1f(1, upTo);
 		glDrawArrays(GL_TRIANGLES, 0, 18*cnt);
+		glDisable(GL_DEPTH_TEST);
 
 		if (drawPoint) {
+			glBlendEquation(GL_MAX);
+			glBlendFunc(GL_ONE, GL_ONE);
+			glEnable(GL_BLEND);
 			glUseProgram(program[PROG_POINT_TRACK]);
 			glUniform1f(1, upTo);
 			//glBlendEquation(GL_FUNC_ADD);
@@ -512,6 +539,13 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	for (double j=0.0; j<=1.0; j+=(1.0/1024.0)) {
 		gpxutil::info("XXX %f %f",j, tracks[0].GetPointByDistance(j * tracks[0].GetLength()));
 	}
+	*/
+
+	/*
+	std::vector<GLfloat> vertices;
+	tracks[0].GetVertices(false, offset, scale, vertices);
+	vis.SetPolygon(vertices);
+	vis.AddToBackground();
 	vertices.clear();
 	vertices.push_back(0.0f);
 	vertices.push_back(0.0f);
@@ -519,9 +553,12 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	vertices.push_back(0.5f);
 	vertices.push_back(1.0f);
 	vertices.push_back(1.0f);
+	vertices.push_back(0.05f);
+	vertices.push_back(0.95f);
+	vertices.push_back(0.95f);
+	vertices.push_back(0.05f);
 	vis.SetPolygon(vertices);
 	*/
-
 	return true;
 }
 
@@ -539,6 +576,12 @@ void CAnimController::DropGL()
 
 void CAnimController::UpdateStep(double timeDelta)
 {
+	/*
+	vis.DrawTrack(-1.0f);
+	vis.MixTrackAndBackground(1.0f);
+
+	return;
+	*/
 	curFrame++;
 	curTime += timeDelta;
 

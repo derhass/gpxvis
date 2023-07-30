@@ -84,6 +84,7 @@ class CVis {
 		float   dataAspect;
 
 		GLuint vaoEmpty;
+		GLuint texTrackDepth;
 		GLuint ssbo[SSBO_COUNT];
 		GLuint fbo[FB_COUNT];
 		GLuint tex[FB_COUNT];

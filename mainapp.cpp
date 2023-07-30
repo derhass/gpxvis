@@ -157,13 +157,8 @@ static void initGLState(const AppConfig&cfg)
 		}
 	}
 
-	/* we set these once and never change them, so there is no need
-	 * to set them during the main loop */
-//	glEnable(GL_DEPTH_TEST);
-
-	/* We do not enable backface culling, since the "cut" shader works
-	 * best when one can see through the cut-out front faces... */
-	//glEnable(GL_CULL_FACE);
+	glDepthFunc(GL_LESS);
+	glClearDepth(1.0f);
 }
 
 /****************************************************************************
