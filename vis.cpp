@@ -599,8 +599,9 @@ void CAnimController::DropGL()
 	vis.DropGL();
 }
 
-void CAnimController::UpdateStep(double timeDelta)
+bool CAnimController::UpdateStep(double timeDelta)
 {
+	bool cycleFinished = false;
 	/*
 	vis.DrawTrack(-1.0f);
 	vis.MixTrackAndBackground(1.0f);
@@ -635,6 +636,7 @@ void CAnimController::UpdateStep(double timeDelta)
 			break;
 		case PHASE_SWITCH_TRACK:
 			if (++curTrack >= tracks.size()) {
+				cycleFinished = true;
 				curTrack = 0;
 			}
 			UpdateTrack(curTrack);
@@ -648,6 +650,7 @@ void CAnimController::UpdateStep(double timeDelta)
 		curPhase = nextPhase;
 		phaseEntryTime = animationTime;
 	}
+	return cycleFinished;
 }
 
 double CAnimController::GetAnimationTime(double deltaTime) const

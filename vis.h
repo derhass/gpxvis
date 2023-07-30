@@ -108,7 +108,7 @@ class CAnimController {
 		bool Prepare(GLsizei width, GLsizei height);
 		void DropGL();
 
-		void UpdateStep(double timeDelta);
+		bool UpdateStep(double timeDelta); // return true if cycle is finished
 
 		const CVis& GetVis() const {return vis;}
 

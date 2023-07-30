@@ -287,7 +287,7 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	/* ask the driver to enable synchronizing the buffer swaps to the
 	 * VBLANK of the display. Depending on the driver and the user's
 	 * setting, this may have no effect. But we can try... */
-	glfwSwapInterval(1);
+	glfwSwapInterval((cfg.outputFrames)?0:1);
 
 	/* initialize glad,
 	 * this will load all OpenGL function pointers
@@ -376,17 +376,20 @@ drawScene(MainApp *app)
 
 /* The main drawing function. This is responsible for drawing the next frame,
  * it is called in a loop as long as the application runs */
-static void
+static bool
 displayFunc(MainApp *app, const AppConfig& cfg)
 {
 	// Render an animation frame
-	app->animCtrl.UpdateStep(app->timeDelta);
+	bool cycleFinished = app->animCtrl.UpdateStep(app->timeDelta);
 	if (cfg.outputFrames) {
 		gpximg::CImg img;
 		if (app->animCtrl.GetVis().GetImage(img)) {
 			char buf[4096];
 			mysnprintf(buf, sizeof(buf), "%s%06lu.tga", cfg.outputFrames, app->animCtrl.GetFrame());
 			img.WriteTGA(buf);
+		}
+		if (cycleFinished) {
+			return false;
 		}
 	}
 
@@ -399,6 +402,7 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 	/* In DEBUG builds, we also check for GL errors in the display
 	 * function, to make sure no GL error goes unnoticed. */
 	GL_ERROR_DBG("display function");
+	return true;
 }
 
 /****************************************************************************
@@ -436,7 +440,9 @@ static void mainLoop(MainApp *app, const AppConfig& cfg)
 		}
 
 		/* call the display function */
-		displayFunc(app, cfg);
+		if (!displayFunc(app, cfg)) {
+			break;
+		}
 		app->frame++;
 		frame++;
 		if (cfg.frameCount && app->frame >= cfg.frameCount) {
