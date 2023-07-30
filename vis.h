@@ -4,6 +4,7 @@
 #include <glad/gl.h>
 
 #include "gpx.h"
+#include "img.h"
 
 #include <vector>
 
@@ -40,6 +41,7 @@ class CVis {
 		GLsizei GetWidth() const {return width;}
 		GLsizei GetHeight() const {return height;}
 		GLuint  GetImageFBO() const {return fbo[FB_FINAL];}
+		bool	GetImage(gpximg::CImg& img) const;
 
 	private:
 		typedef enum {
@@ -109,6 +111,8 @@ class CAnimController {
 		void UpdateStep(double timeDelta);
 
 		const CVis& GetVis() const {return vis;}
+
+		unsigned long GetFrame() const {return curFrame;}
 
 
 	private:

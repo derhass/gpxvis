@@ -40,17 +40,19 @@ struct AppConfig {
 	unsigned int frameCount;
 	DebugOutputLevel debugOutputLevel;
 	bool debugOutputSynchronous;
+	char *outputFrames;
 
 	AppConfig() :
 		posx(100),
 		posy(100),
 		width(1920),
-		height(1200),
+		height(1080),
 		decorated(true),
 		fullscreen(false),
 		frameCount(0),
 		debugOutputLevel(DEBUG_OUTPUT_DISABLED),
-		debugOutputSynchronous(false)
+		debugOutputSynchronous(false),
+		outputFrames(NULL)
 	{
 #ifndef NDEBUG
 		debugOutputLevel = DEBUG_OUTPUT_ALL;
@@ -340,9 +342,6 @@ static void destroyMainApp(MainApp *app)
 static void
 drawScene(MainApp *app)
 {
-	// TODO ...
-	app->animCtrl.UpdateStep(app->timeDelta);
-
 	/* set the viewport (might have changed since last iteration) */
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	//glViewport(0, 0, app->width, app->height);
@@ -380,6 +379,17 @@ drawScene(MainApp *app)
 static void
 displayFunc(MainApp *app, const AppConfig& cfg)
 {
+	// Render an animation frame
+	app->animCtrl.UpdateStep(app->timeDelta);
+	if (cfg.outputFrames) {
+		gpximg::CImg img;
+		if (app->animCtrl.GetVis().GetImage(img)) {
+			char buf[4096];
+			mysnprintf(buf, sizeof(buf), "%s%06lu.tga", cfg.outputFrames, app->animCtrl.GetFrame());
+			img.WriteTGA(buf);
+		}
+	}
+
 	drawScene(app);
 
 	/* finished with drawing, swap FRONT and BACK buffers to show what we
@@ -471,6 +481,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					cfg.frameCount = (unsigned)strtoul(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--gl-debug-level")) {
 					cfg.debugOutputLevel = (DebugOutputLevel)strtoul(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--output-frames")) {
+					cfg.outputFrames = argv[++i];
 				} else {
 					unhandled = true;
 				}

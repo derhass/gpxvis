@@ -70,9 +70,9 @@ CVis::CVis() :
 	colorGradient[3][2] = 1.0f;
 	colorGradient[3][3] = 1.0f;
 
-	trackWidth = 3.0f;
+	trackWidth = 5.0f;
 	trackPointWidth = 10.0f;
-	neighborhoodWidth = 2.0f;
+	neighborhoodWidth = 3.0f;
 
 	for (int i=0; i<SSBO_COUNT; i++) {
 		ssbo[i] = 0;
@@ -437,6 +437,19 @@ void CVis::Clear()
 			glClear(GL_COLOR_BUFFER_BIT);
 		}
 	}
+}
+
+bool CVis::GetImage(gpximg::CImg& img) const
+{
+	if (!tex[FB_FINAL]) {
+		gpxutil::warn("no image available");
+		return false;
+	}
+	if (!img.Allocate((int)width,(int)height,3)) {
+		return false;
+	}
+	glGetTextureImage(tex[FB_FINAL],0,GL_RGB,GL_UNSIGNED_BYTE, img.GetSize(), img.GetData());
+	return true;
 }
 
 /****************************************************************************
