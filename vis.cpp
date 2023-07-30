@@ -46,8 +46,8 @@ CVis::CVis() :
 	colorBackground[3] = 0.0f;
 
 	colorBase[0] = 0.6f;
-	colorBase[1] = 0.8f;
-	colorBase[2] = 0.8f;
+	colorBase[1] = 0.6f;
+	colorBase[2] = 0.6f;
 	colorBase[3] = 1.0f;
 
 	colorGradient[0][0] = 1.0f;
