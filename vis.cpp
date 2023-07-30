@@ -474,6 +474,20 @@ static GLsizei roundNext(GLsizei value, GLsizei base)
 
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
+	if (tracks.size() < 1) {
+		gpxutil::warn("anim controller without tracks");
+		return false;
+	}
+
+	double totalLen = 0.0;
+	double totalDur = 0.0;
+	for(size_t i=0; i<tracks.size(); i++) {
+		totalLen += tracks[i].GetLength();
+		totalDur += tracks[i].GetDuration();
+	}
+	gpxutil::info("have %llu tracks, total lenght: %f, total duration: %f",
+		(unsigned long long)tracks.size(), totalLen, totalDur);
+
 	gpxutil::CAABB screenAABB = aabb;
 	screenAABB.Enhance(1.05,0.0);
 	screenAABB.GetNormalizeScaleOffset(scale, offset);
@@ -500,11 +514,6 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 		(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight, dataAspect);
 
 	if (!vis.InitializeGL(realWidth, realHeight, (float)dataAspect)) {
-		return false;
-	}
-
-	if (tracks.size() < 1) {
-		gpxutil::warn("anim controller without tracks");
 		return false;
 	}
 

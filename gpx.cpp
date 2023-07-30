@@ -65,6 +65,15 @@ static time_t getTime(const char *str)
 	return val;
 }
 
+static void projectMercator(double lon, double lat, double& x, double&y)
+{
+	const double s = 26078.0;
+	lon = lon * M_PI / 180.0;
+	lat = lat * M_PI / 180.0;
+	x = (s * (lon + M_PI)) / (2.0 * M_PI);
+	y = (s * (M_PI + log(tan(M_PI/4.0 + lat * 0.5)))) / (2.0 * M_PI);
+}
+
 bool CTrack::Load(const char *filename)
 {
 	FILE *file = fopen(filename, "rt");
@@ -89,6 +98,7 @@ bool CTrack::Load(const char *filename)
 	source[fread(source, 1, size, file)] = 0;
 	fclose(file);
 
+	Reset();
 	long pos = 0;
 	while (pos < size) {
 		const char *start = strstr(source+pos, "<trkpt");
@@ -108,10 +118,12 @@ bool CTrack::Load(const char *filename)
 
 		if (lat && lon) {
 			TPoint pt;
-			pt.x = getDbl(lon);
-			pt.y = getDbl(lat);
+			double lonVal = getDbl(lon);
+			double latVal = getDbl(lat);
+			projectMercator(lonVal,latVal,pt.x,pt.y);
 			pt.h = getDbl(ele);
 			pt.timestamp = getTime(time);
+
 
 			aabb.Add(pt.x,pt.y,pt.h);
 
