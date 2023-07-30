@@ -205,7 +205,8 @@ bool CVis::InitializeUBO(int i)
 			} else {
 				tscale[1] *= screenAspect / dataAspect;
 			}
-			gpxutil::info("aspect ratios %f %f", screenAspect, dataAspect);
+			gpxutil::info("render aspect ratios %f %f, correction %f %f",
+				screenAspect, dataAspect, tscale[0], tscale[1]);
 			transformParam.scale_offset[0] = 2.0f * tscale[0];
 			transformParam.scale_offset[1] = 2.0f * tscale[1];
 			transformParam.scale_offset[2] =-1.0f * tscale[0];
@@ -435,6 +436,15 @@ bool CAnimController::AddTrack(const char *filename)
 	return true;
 }
 
+static GLsizei roundNext(GLsizei value, GLsizei base)
+{
+	GLsizei rem = value % base;
+	if (rem) {
+		value += base - rem;
+	}
+	return value;
+}
+
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
 	gpxutil::CAABB screenAABB = aabb;
@@ -448,8 +458,21 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 		scale[0] = scale[1];
 		offset[0] -= (0.5 - 0.5 * dataAspect) / scale[0];
 	}
+	double screenAspect = (double)width/(double)height;
+	GLsizei realWidth = width;
+	GLsizei realHeight = height;
+	if (screenAspect > dataAspect) {
+		realWidth = (GLsizei)(width * (dataAspect/screenAspect) + 0.5);
+	} else {
+		realHeight = (GLsizei)(height * (screenAspect/dataAspect) + 0.5);
+	}
+	realWidth = roundNext(realWidth, 16);
+	realHeight = roundNext(realHeight, 16);
+	gpxutil::info("adjusted rendering resolution from %ux%u (%f) to %ux%u (%f) to match data aspect %f",
+		(unsigned)width, (unsigned)height, screenAspect,
+		(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight, dataAspect);
 
-	if (!vis.InitializeGL(width, height, (float)dataAspect)) {
+	if (!vis.InitializeGL(realWidth, realHeight, (float)dataAspect)) {
 		return false;
 	}
 
@@ -460,6 +483,7 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 
 	UpdateTrack(0);
 
+	/*
 	std::vector<GLfloat> vertices;
 	gpxutil::CAABB xxx;
 	for(size_t j=0; j<tracks.size(); j++) {
@@ -471,6 +495,7 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	}
 	const double *q = xxx.Get();
 	gpxutil::info("XXXX %f %f %f %f %f %f",q[0],q[1],q[2],q[3],q[4],q[5]);
+	*/
 
 	/*
 	std::vector<GLfloat> vertices;
