@@ -224,7 +224,7 @@ float CTrack::GetPointByDistance(double distance) const
 		//gpxutil::info("XXX %u %u %u %f %f %f",(unsigned)window[0],(unsigned)window[1],(unsigned)center,points[window[0]].posOnTrack,points[window[1]].posOnTrack,points[center].posOnTrack);
 		if (points[center].posOnTrack < distance) {
 			window[0] = center;
-		} else if (points[center].posOnTrack > distance) {
+		} else {
 			window[1] = center;
 		}
 	}
@@ -273,7 +273,7 @@ float CTrack::GetPointByDuration(double duration) const
 		//gpxutil::info("XXX %u %u %u %f %f %f",(unsigned)window[0],(unsigned)window[1],(unsigned)center,points[window[0]].timeOnTrack,points[window[1]].timeOnTrack,points[center].timeOnTrack);
 		if (points[center].timeOnTrack < duration) {
 			window[0] = center;
-		} else if (points[center].timeOnTrack > duration) {
+		} else {
 			window[1] = center;
 		}
 	}
