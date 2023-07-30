@@ -457,6 +457,9 @@ bool CVis::GetImage(gpximg::CImg& img) const
  ****************************************************************************/
 
 CAnimController::CAnimController() :
+	animDeltaPerFrame(-1.0),
+	trackSpeed(3.0 * 3600.0),
+	fadeoutTime(0.5),
 	curTrack(0),
 	curFrame(0),
 	curTime(0.0),
@@ -643,21 +646,23 @@ void CAnimController::UpdateStep(double timeDelta)
 	}
 	if (nextPhase != curPhase) {
 		curPhase = nextPhase;
-		phaseEntryTime = curTime;
+		phaseEntryTime = animationTime;
 	}
 }
 
 double CAnimController::GetAnimationTime(double deltaTime) const
 {
-	return animationTime + deltaTime;
+	if (animDeltaPerFrame < 0.0) {
+		return animationTime - animDeltaPerFrame * deltaTime;
+	} else {
+		return animationTime + animDeltaPerFrame;
+	}
 }
 
 float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 {
 	double t = animationTime - phaseEntryTime;
-	double x = t * 3.0 * 3600.0;
-	//x = t * 3.0 * 600.0;
-	//x = tracks[curTrack].GetDuration() + 1.0;
+	double x = t * trackSpeed;
 	if (x >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
 		x = tracks[curTrack].GetDuration();
@@ -667,8 +672,12 @@ float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 
 float CAnimController::GetFadeoutAnimation(TPhase& nextPhase)
 {
-	double t = (animationTime - phaseEntryTime) / 0.5;
-	//t = 1.01;
+	double t = (animationTime - phaseEntryTime);
+	if (fadeoutTime > 0.0) {
+		t = t / fadeoutTime;
+	} else {
+		t = 1.01;
+	}
 	if (t > 1.0) {
 		t = 1.0;
 		nextPhase = PHASE_SWITCH_TRACK;

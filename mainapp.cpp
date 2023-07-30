@@ -483,6 +483,9 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					cfg.debugOutputLevel = (DebugOutputLevel)strtoul(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--output-frames")) {
 					cfg.outputFrames = argv[++i];
+				} else if (!strcmp(argv[i], "--output-fps")) {
+					double fps = strtod(argv[++i], NULL);
+					app.animCtrl.SetAnimSpeed(1.0/fps);
 				} else {
 					unhandled = true;
 				}

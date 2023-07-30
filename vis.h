@@ -76,6 +76,7 @@ class CVis {
 		size_t vertexCount;
 		GLsizei width;
 		GLsizei height;
+		float   dataAspect;
 
 		GLfloat colorBackground[4];
 		GLfloat colorBase[4];
@@ -83,7 +84,6 @@ class CVis {
 		GLfloat trackWidth;
 		GLfloat trackPointWidth;
 		GLfloat neighborhoodWidth;
-		float   dataAspect;
 
 		GLuint vaoEmpty;
 		GLuint texTrackDepth;
@@ -114,6 +114,10 @@ class CAnimController {
 
 		unsigned long GetFrame() const {return curFrame;}
 
+		void SetAnimSpeed(double s) {animDeltaPerFrame = s;}
+		void SetTrackSpeec(double s) {trackSpeed = s;}
+		void SetFadoutTime(double s) {fadeoutTime = s;}
+
 
 	private:
 		typedef enum {
@@ -123,6 +127,10 @@ class CAnimController {
 			PHASE_FADEOUT,
 			PHASE_SWITCH_TRACK,
 		} TPhase;
+
+		double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
+		double        trackSpeed;        // 1.0 is realtime
+		double        fadeoutTime;	 // seconds
 
 		size_t        curTrack;
 		unsigned long curFrame;
