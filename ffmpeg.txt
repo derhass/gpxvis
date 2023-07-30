@@ -1,0 +1,2 @@
+ffmpeg -framerate 60 -pattern_type sequence -i 1080fps60A_%06d.tga -c:v libx264 -profile high444 -crf 18 -preset veryslow -pix_fmt yuv444p 1080fps60A_444.mp4
+ffmpeg -framerate 60 -pattern_type sequence -i 1080fps60A_%06d.tga -c:v libx264 -crf 25 -preset veryslow -pix_fmt yuv420p 1080fps60A_main.mp4
