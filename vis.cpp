@@ -197,13 +197,13 @@ bool CVis::InitializeUBO(int i)
 				tscale[0] = 1.0f;
 				tscale[1] = dataAspect;
 			} else {
-				tscale[0] = dataAspect;
+				tscale[0] = 1.0/dataAspect;
 				tscale[1] = 1.0f;
 			}
 			if (screenAspect > dataAspect) {
 				tscale[0] *= dataAspect / screenAspect;
 			} else {
-				tscale[1] *= 1.0f / screenAspect;
+				tscale[1] *= screenAspect / dataAspect;
 			}
 			gpxutil::info("aspect ratios %f %f", screenAspect, dataAspect);
 			transformParam.scale_offset[0] = 2.0f * tscale[0];
@@ -567,6 +567,7 @@ float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 	double t = animationTime - phaseEntryTime;
 	double x = t * 3.0 * 3600.0;
 	//x = t * 3.0 * 600.0;
+	//x = tracks[curTrack].GetDuration() + 1.0;
 	if (x >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
 		x = tracks[curTrack].GetDuration();
@@ -577,6 +578,7 @@ float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 float CAnimController::GetFadeoutAnimation(TPhase& nextPhase)
 {
 	double t = (animationTime - phaseEntryTime) / 0.5;
+	//t = 1.01;
 	if (t > 1.0) {
 		t = 1.0;
 		nextPhase = PHASE_SWITCH_TRACK;
