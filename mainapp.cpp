@@ -318,6 +318,8 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.IniFilename = NULL;
+		io.LogFilename = NULL;
 
 		// Setup Platform/Renderer backends
 		ImGui_ImplGlfw_InitForOpenGL(app->win, true);
