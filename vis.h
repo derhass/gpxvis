@@ -111,6 +111,7 @@ class CAnimController {
 		bool UpdateStep(double timeDelta); // return true if cycle is finished
 
 		const CVis& GetVis() const {return vis;}
+		CVis& GetVis() {return vis;}
 
 		unsigned long GetFrame() const {return curFrame;}
 		bool IsPrepared() const {return prepared;}
@@ -124,6 +125,7 @@ class CAnimController {
 		size_t GetTrackCount() const {return tracks.size();}
 		size_t GetCurrentTrackIndex() const {return curTrack;}
 		const gpx::CTrack& GetCurrentTrack() const {return tracks[curTrack];}
+		void ChangeTrack(int delta);
 
 
 	private:

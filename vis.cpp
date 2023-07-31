@@ -698,5 +698,27 @@ float CAnimController::GetFadeoutAnimation(TPhase& nextPhase)
 	return (float)(1.0-t);
 }
 
+void CAnimController::ChangeTrack(int delta)
+{
+	if (tracks.size() < 1 || !delta) {
+		return;
+	}
+
+	if (delta < 0) {
+		size_t off = (size_t) -delta;
+		off = off % tracks.size();
+		if (off > curTrack) {
+			curTrack = (curTrack + tracks.size() - off) % tracks.size();
+		} else {
+			curTrack -= off;
+		}
+	} else {
+		size_t off = (size_t) delta;
+		curTrack = (curTrack + off) % tracks.size();
+	}
+	UpdateTrack(curTrack);
+	curPhase = PHASE_INIT;
+}
+
 } // namespace gpxvis
 

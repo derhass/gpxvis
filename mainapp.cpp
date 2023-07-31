@@ -375,7 +375,7 @@ static void
 drawScene(MainApp *app, const AppConfig& cfg)
 {
 	gpxvis::CAnimController& animCtrl = app->animCtrl;
-	const gpxvis::CVis& vis = animCtrl.GetVis();
+	gpxvis::CVis& vis = animCtrl.GetVis();
 
 	GLsizei w = vis.GetWidth();
 	GLsizei h = vis.GetHeight();
@@ -450,11 +450,29 @@ drawScene(MainApp *app, const AppConfig& cfg)
 			if (ImGui::Button("Pause")) {
 				animCtrl.Pause();
 			}
+			if (ImGui::Button("Next")) {
+				animCtrl.ChangeTrack(1);
+			}
+			if (ImGui::Button("Prev")) {
+				animCtrl.ChangeTrack(-1);
+			}
+			if (ImGui::Button("Clear Background")) {
+				vis.Clear();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			static double speedup = 1.0;
+			static double dZero = 0.0;
+			static double dOne = 10.0;
+			if (ImGui::SliderScalar("slider double low",ImGuiDataType_Double, &speedup, &dZero, &dOne,  "%.3fx", ImGuiSliderFlags_Logarithmic)) {
+				animCtrl.SetAnimSpeed(-speedup);
+			}
 		} else {
 			ImGui::Text("no tracks loaded");
 		}
 		ImGui::End();
 		//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+		//
+		ImGui::ShowDemoWindow();
 
 
 		ImGui::Render();
