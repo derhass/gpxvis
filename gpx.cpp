@@ -297,8 +297,8 @@ float CTrack::GetPointByDuration(double duration) const
 
 	duration -= points[window[0]].timeOnTrack;
 	float rel;
-	if (points[window[0]].len > 0.0) {
-		rel = (float)(duration / points[window[0]].len);
+	if (points[window[0]].duration > 0.0) {
+		rel = (float)(duration / points[window[0]].duration);
 		if (rel < 0.0f) {
 			rel = 0.0f;
 		} else if (rel > 0.999999f) {
