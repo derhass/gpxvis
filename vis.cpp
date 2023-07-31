@@ -460,10 +460,12 @@ CAnimController::CAnimController() :
 	animDeltaPerFrame(-1.0),
 	trackSpeed(3.0 * 3600.0),
 	fadeoutTime(0.5),
+	paused(false),
 	curTrack(0),
 	curFrame(0),
 	curTime(0.0),
-	curPhase(PHASE_INIT)
+	curPhase(PHASE_INIT),
+	prepared(false)
 {
 }
 
@@ -476,6 +478,7 @@ bool CAnimController::AddTrack(const char *filename)
 		return false;
 	}
 	aabb.MergeWith(tracks[idx].GetAABB());
+	prepared = false;
 	return true;
 }
 
@@ -584,6 +587,7 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	vertices.push_back(0.05f);
 	vis.SetPolygon(vertices);
 	*/
+	prepared = true;
 	return true;
 }
 
@@ -601,6 +605,9 @@ void CAnimController::DropGL()
 
 bool CAnimController::UpdateStep(double timeDelta)
 {
+	if (!prepared) {
+		return false;
+	}
 	bool cycleFinished = false;
 	/*
 	vis.DrawTrack(-1.0f);
@@ -655,6 +662,9 @@ bool CAnimController::UpdateStep(double timeDelta)
 
 double CAnimController::GetAnimationTime(double deltaTime) const
 {
+	if (paused) {
+		return animationTime;
+	}
 	if (animDeltaPerFrame < 0.0) {
 		return animationTime - animDeltaPerFrame * deltaTime;
 	} else {

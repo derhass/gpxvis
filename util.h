@@ -4,6 +4,13 @@
 #include <glad/gl.h>
 #include <stddef.h>
 
+/* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
+#ifdef WIN32
+#define mysnprintf sprintf_s
+#else
+#define mysnprintf snprintf
+#endif
+
 namespace gpxutil {
 
 /****************************************************************************

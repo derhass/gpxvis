@@ -13,13 +13,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
-#ifdef WIN32
-#define mysnprintf sprintf_s
-#else
-#define mysnprintf snprintf
-#endif
-
 /****************************************************************************
  * DATA STRUCTURES                                                          *
  ****************************************************************************/
@@ -325,7 +318,9 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	// TODO ...
 	if (!app->animCtrl.Prepare(app->width,app->height)) {
 		gpxutil::warn("failed to initialize animation controller");
-		return false;
+		if (cfg.outputFrames) {
+			return false;
+		}
 	}
 
 	/* initialize the timer */
@@ -356,47 +351,115 @@ static void destroyMainApp(MainApp *app)
  * DRAWING FUNCTION                                                         *
  ****************************************************************************/
 
+static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
+{
+	ImGui::Begin("frameinfo", NULL,
+			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+			ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus);
+	if (animCtrl.GetTrackCount()) {
+		const gpx::CTrack& track = animCtrl.GetCurrentTrack();
+		ImGui::SetCursorPosY(2);
+		ImGui::Text("#%d/%d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
+		float ww = ImGui::GetWindowSize().x;
+		float tw = ImGui::CalcTextSize(track.GetInfo()).x;
+		ImGui::SetCursorPosX(ww - tw - 8.0f);
+		ImGui::SetCursorPosY(2);
+		ImGui::Text(track.GetInfo());
+	}
+	ImGui::End();
+}
+
 /* This draws the complete scene for a single eye */
 static void
-drawScene(MainApp *app)
+drawScene(MainApp *app, const AppConfig& cfg)
 {
-	ImGui_ImplOpenGL3_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-	ImGui::ShowDemoWindow();
+	gpxvis::CAnimController& animCtrl = app->animCtrl;
+	const gpxvis::CVis& vis = animCtrl.GetVis();
 
+	GLsizei w = vis.GetWidth();
+	GLsizei h = vis.GetHeight();
+
+	ImGui_ImplOpenGL3_NewFrame();
+	if (cfg.outputFrames && animCtrl.IsPrepared()) {
+		float scale = 2.0f;
+		// Render some stuff to the image itself
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vis.GetImageFBO());
+
+		ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2((float)vis.GetWidth()/scale, (float)vis.GetHeight()/scale);
+		io.DisplayFramebufferScale = ImVec2(scale, scale);
+		io.DeltaTime = 1.0e-10f;
+		//ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::SetNextWindowPos(ImVec2(0,0));
+		ImGui::SetNextWindowSize(ImVec2(vis.GetWidth()/scale, vis.GetHeight()/scale));
+
+		drawTrackStatus(animCtrl);
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
 	/* set the viewport (might have changed since last iteration) */
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	//glViewport(0, 0, app->width, app->height);
+	glViewport(0, 0, app->width, app->height);
 
 	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
 
-	const gpxvis::CVis& vis = app->animCtrl.GetVis();
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
+	GLsizei widthOffset=0;
+	GLsizei heightOffset=0;
+	GLsizei newWidth = app->width;
+	GLsizei newHeight = app->height;
 
-	float winAspect = (float)app->width / (float)app->height;
-	GLsizei w = vis.GetWidth();
-	GLsizei h = vis.GetHeight();
-	float imgAspect = (float)w/(float)h;
-	if (winAspect > imgAspect) {
-		float scale = (float)app->height / (float)h;
-		GLsizei newWidth = (GLsizei)(scale * w + 0.5f);
-		GLsizei offset = (app->width - newWidth) / 2;
+	if (animCtrl.IsPrepared()) {
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
 
-		glBlitFramebuffer(0,0,w,h, offset,0,offset+newWidth, app->height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	} else {
-		float scale = (float)app->width / (float)w;
-		GLsizei newHeight = (GLsizei)(scale * h + 0.5f);
-		GLsizei offset = (app->height- newHeight) / 2;
+		float winAspect = (float)app->width / (float)app->height;
+		float imgAspect = (float)w/(float)h;
+		if (winAspect > imgAspect) {
+			float scale = (float)app->height / (float)h;
+			newWidth = (GLsizei)(scale * w + 0.5f);
+			widthOffset = (app->width - newWidth) / 2;
+		} else {
+			float scale = (float)app->width / (float)w;
+			newHeight = (GLsizei)(scale * h + 0.5f);
+			heightOffset = (app->height- newHeight) / 2;
+		}
+		glBlitFramebuffer(0,0,w,h, widthOffset,heightOffset, widthOffset+newWidth, heightOffset+newHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
-		glBlitFramebuffer(0,0,w,h, 0,offset,app->width, offset+newHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	if (!cfg.outputFrames) {
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
 
-	ImGui::Render();
-	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		ImGui::SetNextWindowPos(ImVec2(widthOffset, heightOffset));
+		ImGui::SetNextWindowSize(ImVec2(newWidth, newHeight));
+		drawTrackStatus(animCtrl);
+		
+		ImGui::Begin("gpxvis");
+		if (animCtrl.GetTrackCount()) {
+			ImGui::Text("Track #%d of %d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
+			const gpx::CTrack& track = animCtrl.GetCurrentTrack();
+			ImGui::Text("%s %s", track.GetFilename(), track.GetInfo());
+			if (ImGui::Button("Play")) {
+				animCtrl.Play();
+			}
+			if (ImGui::Button("Pause")) {
+				animCtrl.Pause();
+			}
+		} else {
+			ImGui::Text("no tracks loaded");
+		}
+		ImGui::End();
+		//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
 }
 
 
@@ -407,6 +470,8 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 {
 	// Render an animation frame
 	bool cycleFinished = app->animCtrl.UpdateStep(app->timeDelta);
+	drawScene(app, cfg);
+
 	if (cfg.outputFrames) {
 		gpximg::CImg img;
 		if (app->animCtrl.GetVis().GetImage(img)) {
@@ -418,8 +483,6 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 			return false;
 		}
 	}
-
-	drawScene(app);
 
 	/* finished with drawing, swap FRONT and BACK buffers to show what we
 	 * have rendered */

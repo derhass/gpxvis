@@ -113,10 +113,17 @@ class CAnimController {
 		const CVis& GetVis() const {return vis;}
 
 		unsigned long GetFrame() const {return curFrame;}
+		bool IsPrepared() const {return prepared;}
 
 		void SetAnimSpeed(double s) {animDeltaPerFrame = s;}
 		void SetTrackSpeec(double s) {trackSpeed = s;}
 		void SetFadoutTime(double s) {fadeoutTime = s;}
+		void Play() {paused = false;}
+		void Pause() {paused = true;}
+
+		size_t GetTrackCount() const {return tracks.size();}
+		size_t GetCurrentTrackIndex() const {return curTrack;}
+		const gpx::CTrack& GetCurrentTrack() const {return tracks[curTrack];}
 
 
 	private:
@@ -131,11 +138,13 @@ class CAnimController {
 		double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
 		double        trackSpeed;        // 1.0 is realtime
 		double        fadeoutTime;	 // seconds
+		bool          paused;
 
 		size_t        curTrack;
 		unsigned long curFrame;
 		double        curTime;
 		TPhase        curPhase;
+		bool          prepared;
 
 		double        animationTime;
 		double        phaseEntryTime;

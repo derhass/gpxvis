@@ -5,6 +5,7 @@
 
 #include "util.h"
 
+#include <string>
 #include <vector>
 #include <time.h>
 
@@ -38,11 +39,16 @@ class CTrack {
 		float  GetPointByDistance(double distance) const;
 		float  GetPointByDuration(double duration) const;
 
+		const char* GetFilename() const {return fullFilename.c_str();}
+		const char* GetInfo() const {return info.c_str();}
+
 	private:
 		std::vector<TPoint> points;
 		gpxutil::CAABB      aabb;
 		double              totalLen;
 		double              totalDuration;
+		std::string fullFilename;
+		std::string info;
 };
 
 } // namespace gpx
