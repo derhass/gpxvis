@@ -5,6 +5,10 @@
 #include "util.h"
 #include "vis.h"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -305,6 +309,16 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 
 	app->flags |= APP_HAVE_GL;
 
+	/* initialize imgui */
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplGlfw_InitForOpenGL(app->win, true);
+	ImGui_ImplOpenGL3_Init();
+
 	/* initialize the GL context */
 	initGLState(cfg);
 
@@ -327,6 +341,10 @@ static void destroyMainApp(MainApp *app)
 		if (app->win) {
 			if (app->flags & APP_HAVE_GL) {
 				app->animCtrl.DropGL();
+				/* shut down imgui */
+				ImGui_ImplOpenGL3_Shutdown();
+				ImGui_ImplGlfw_Shutdown();
+				ImGui::DestroyContext();				
 			}
 			glfwDestroyWindow(app->win);
 		}
@@ -342,6 +360,11 @@ static void destroyMainApp(MainApp *app)
 static void
 drawScene(MainApp *app)
 {
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+	ImGui::ShowDemoWindow();
+
 	/* set the viewport (might have changed since last iteration) */
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	//glViewport(0, 0, app->width, app->height);
@@ -371,6 +394,9 @@ drawScene(MainApp *app)
 	}
 
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+	ImGui::Render();
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
 

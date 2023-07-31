@@ -17,6 +17,7 @@ may find it useful.
 
 * OpenGL 4.6 core profile
 * GLFW3 (http://www.glfw.org/) is used as a multi-platform library for creating windows and OpenGL contexts and for event handling
+* Dear ImGui (https://github.com/ocornut/imgui) is included as a git submodule
 
 # License
 

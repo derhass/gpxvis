@@ -19,7 +19,7 @@ endif
 
 # include paths for the builtin libraries glad and glm. We do not link them,
 # as we directly incorporated the source code into our project
-CPPFLAGS += -I glad/include -I glm/
+CPPFLAGS += -I glad/include -I imgui -I imgui/backends
 
 # Try to find the system's GLFW3 library via pkg-config
 CPPFLAGS += $(shell pkg-config --cflags glfw3)
@@ -29,7 +29,7 @@ LDFLAGS += $(shell pkg-config --static --libs glfw3)
 LDFLAGS += -lrt -lm
 
 CFILES=$(wildcard *.c) glad/src/gl.c
-CPPFILES=$(wildcard *.cpp)
+CPPFILES=$(wildcard *.cpp) $(wildcard imgui/*.cpp) imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_opengl3.cpp
 INCFILES=$(wildcard *.h)	
 SRCFILES = $(CFILES) $(CPPFILES)
 PRJFILES = Makefile $(wildcard *.vcxproj) $(wildcard *.sln)
@@ -58,6 +58,8 @@ $(DEPDIR)/dependencies: $(DEPDIR)/dir $(DEPFILES)
 $(DEPDIR)/dir:
 	@mkdir -p $(DEPDIR)
 	@mkdir -p $(DEPDIR)/glad/src
+	@mkdir -p $(DEPDIR)/imgui
+	@mkdir -p $(DEPDIR)/imgui/backends
 	@touch $(DEPDIR)/dir
 $(DEPDIR)/%.d: %.c $(DEPDIR)/dir
 	@echo rebuilding dependencies for $*
