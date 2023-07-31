@@ -16,6 +16,17 @@ namespace gpxvis {
 
 class CVis {
 	public:
+		struct TConfig {
+			GLfloat colorBackground[4];
+			GLfloat colorBase[4];
+			GLfloat colorGradient[4][4];
+			GLfloat trackWidth;
+			GLfloat trackPointWidth;
+			GLfloat neighborhoodWidth;
+
+			TConfig();
+		};
+
 		CVis();
 		~CVis();
 
@@ -42,6 +53,9 @@ class CVis {
 		GLsizei GetHeight() const {return height;}
 		GLuint  GetImageFBO() const {return fbo[FB_FINAL];}
 		bool	GetImage(gpximg::CImg& img) const;
+
+		TConfig& GetConfig() {return cfg;} // use UpdateConfig after you modified something!
+		void UpdateConfig();
 
 	private:
 		typedef enum {
@@ -78,12 +92,7 @@ class CVis {
 		GLsizei height;
 		float   dataAspect;
 
-		GLfloat colorBackground[4];
-		GLfloat colorBase[4];
-		GLfloat colorGradient[4][4];
-		GLfloat trackWidth;
-		GLfloat trackPointWidth;
-		GLfloat neighborhoodWidth;
+		TConfig cfg;
 
 		GLuint vaoEmpty;
 		GLuint texTrackDepth;
@@ -102,6 +111,15 @@ class CVis {
 
 class CAnimController {
 	public:
+		struct TAnimConfig {
+			double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
+			double        trackSpeed;        // 1.0 is realtime
+			double        fadeoutTime;	 // seconds
+			bool          paused;
+
+			TAnimConfig();
+		};
+
 		CAnimController();
 
 		bool AddTrack(const char *filename);
@@ -116,17 +134,19 @@ class CAnimController {
 		unsigned long GetFrame() const {return curFrame;}
 		bool IsPrepared() const {return prepared;}
 
-		void SetAnimSpeed(double s) {animDeltaPerFrame = s;}
-		void SetTrackSpeec(double s) {trackSpeed = s;}
-		void SetFadoutTime(double s) {fadeoutTime = s;}
-		void Play() {paused = false;}
-		void Pause() {paused = true;}
+		void SetAnimSpeed(double s) {animCfg.animDeltaPerFrame = s;}
+		void SetTrackSpeec(double s) {animCfg.trackSpeed = s;}
+		void SetFadoutTime(double s) {animCfg.fadeoutTime = s;}
+		void Play() {animCfg.paused = false;}
+		void Pause() {animCfg.paused = true;}
+		TAnimConfig& GetAnimConfig() {return animCfg;}
 
 		size_t GetTrackCount() const {return tracks.size();}
 		size_t GetCurrentTrackIndex() const {return curTrack;}
 		const gpx::CTrack& GetCurrentTrack() const {return tracks[curTrack];}
 		void ChangeTrack(int delta);
 
+		void RestoreHistoryUpTo(size_t idx);
 
 	private:
 		typedef enum {
@@ -137,10 +157,7 @@ class CAnimController {
 			PHASE_SWITCH_TRACK,
 		} TPhase;
 
-		double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
-		double        trackSpeed;        // 1.0 is realtime
-		double        fadeoutTime;	 // seconds
-		bool          paused;
+		TAnimConfig   animCfg;
 
 		size_t        curTrack;
 		unsigned long curFrame;

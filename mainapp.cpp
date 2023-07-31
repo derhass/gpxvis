@@ -390,6 +390,111 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 	}
 	ImGui::End();
 }
+
+static void drawMainWindow(gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
+{
+	bool modified = false;
+
+	bool modifiedHistory = false;
+	ImGui::Begin("gpxvis");
+	if (animCtrl.GetTrackCount()) {
+		ImGui::Text("Track #%d of %d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
+		const gpx::CTrack& track = animCtrl.GetCurrentTrack();
+		ImGui::Text("%s %s", track.GetFilename(), track.GetInfo());
+		if (ImGui::Button("Play")) {
+			animCtrl.Play();
+		}
+		if (ImGui::Button("Pause")) {
+			animCtrl.Pause();
+		}
+		if (ImGui::Button("Next")) {
+			animCtrl.ChangeTrack(1);
+			modifiedHistory = true;
+		}
+		if (ImGui::Button("Prev")) {
+			animCtrl.ChangeTrack(-1);
+			modifiedHistory = true;
+		}
+		if (ImGui::Button("Clear Background")) {
+			vis.Clear();
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		}
+	} else {
+		ImGui::Text("no tracks loaded");
+	} 
+
+	ImGui::SeparatorText("Animation Control");
+	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
+	float trackSpeed = animCfg.trackSpeed/3600.0f;
+	if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
+		animCfg.trackSpeed = trackSpeed * 3600.0;
+	}
+	float fadeout = animCfg.fadeoutTime;
+	if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+		animCfg.fadeoutTime = fadeout;
+	}
+	static float speedup = 1.0f;
+	if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
+		animCtrl.SetAnimSpeed(-speedup);
+	}
+	if (ImGui::Button("Reset Animation Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+		animCfg = gpxvis::CAnimController::TAnimConfig();
+		speedup = 1.0f;
+	}
+
+	if (ImGui::TreeNode("Parameters")) {
+		ImGui::SeparatorText("Track Colors");
+		gpxvis::CVis::TConfig& cfg=vis.GetConfig();
+		if (ImGui::ColorEdit3("track history", cfg.colorBase)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		if (ImGui::ColorEdit3("gradient new", &cfg.colorGradient[0][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("gradient mid", &cfg.colorGradient[1][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("gradient old", &cfg.colorGradient[2][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("current point", &cfg.colorGradient[3][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("background", cfg.colorBackground)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::SeparatorText("Line Parameters");
+		if (ImGui::SliderFloat("track width", &cfg.trackWidth, 0.0f, 32.0f)) {
+			modified = true;
+		}
+		if (ImGui::SliderFloat("point size", &cfg.trackPointWidth, 0.0f, 32.0f)) {
+			modified = true;
+		}
+		if (ImGui::SliderFloat("neighborhood width", &cfg.neighborhoodWidth, 0.0f, 32.0f)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::SeparatorText("Defaults");
+		if (ImGui::Button("Reset Visualization Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			cfg = gpxvis::CVis::TConfig();
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::TreePop();
+	}
+
+	if (modified) {
+		vis.UpdateConfig();
+	}
+	if (modifiedHistory) {
+		size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
+		animCtrl.RestoreHistoryUpTo(curTrackIdx);
+	}
+	ImGui::End();
+	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+}
 #endif
 
 /* This draws the complete scene for a single eye */
@@ -466,40 +571,9 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		ImGui::SetNextWindowSize(ImVec2(newWidth, newHeight));
 		drawTrackStatus(animCtrl);
 		
-		ImGui::Begin("gpxvis");
-		if (animCtrl.GetTrackCount()) {
-			ImGui::Text("Track #%d of %d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
-			const gpx::CTrack& track = animCtrl.GetCurrentTrack();
-			ImGui::Text("%s %s", track.GetFilename(), track.GetInfo());
-			if (ImGui::Button("Play")) {
-				animCtrl.Play();
-			}
-			if (ImGui::Button("Pause")) {
-				animCtrl.Pause();
-			}
-			if (ImGui::Button("Next")) {
-				animCtrl.ChangeTrack(1);
-			}
-			if (ImGui::Button("Prev")) {
-				animCtrl.ChangeTrack(-1);
-			}
-			if (ImGui::Button("Clear Background")) {
-				vis.Clear();
-				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-			}
-			static double speedup = 1.0;
-			static double dZero = 0.0;
-			static double dOne = 10.0;
-			if (ImGui::SliderScalar("slider double low",ImGuiDataType_Double, &speedup, &dZero, &dOne,  "%.3fx", ImGuiSliderFlags_Logarithmic)) {
-				animCtrl.SetAnimSpeed(-speedup);
-			}
-		} else {
-			ImGui::Text("no tracks loaded");
-		}
-		ImGui::End();
-		//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-		//
-		ImGui::ShowDemoWindow();
+		drawMainWindow(animCtrl, vis);
+
+		ImGui::ShowDemoWindow(); // TODO: remove
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}

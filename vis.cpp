@@ -31,14 +31,7 @@ struct lineParam {
  * VISUALIZE A SINGLE POLYGON, MIX IT WITH THE HISTORY                      *
  ****************************************************************************/
 
-CVis::CVis() :
-	bufferVertexCount(0),
-	vertexCount(0),
-	width(0),
-	height(0),
-	dataAspect(0),
-	vaoEmpty(0),
-	texTrackDepth(0)
+CVis::TConfig::TConfig()
 {
 	colorBackground[0] = 0.0f;
 	colorBackground[1] = 0.0f;
@@ -73,7 +66,17 @@ CVis::CVis() :
 	trackWidth = 5.0f;
 	trackPointWidth = 10.0f;
 	neighborhoodWidth = 3.0f;
+}
 
+CVis::CVis() :
+	bufferVertexCount(0),
+	vertexCount(0),
+	width(0),
+	height(0),
+	dataAspect(0),
+	vaoEmpty(0),
+	texTrackDepth(0)
+{
 	for (int i=0; i<SSBO_COUNT; i++) {
 		ssbo[i] = 0;
 	}
@@ -237,17 +240,17 @@ bool CVis::InitializeUBO(int i)
 		case UBO_LINE:
 			size = sizeof(ubo::lineParam);
 			ptr = &lineParam;
-			memcpy(lineParam.colorBase, colorBase, 4*sizeof(GLfloat));
-			memcpy(lineParam.colorGradient, colorGradient, 4*4*sizeof(GLfloat));
+			memcpy(lineParam.colorBase, cfg.colorBase, 4*sizeof(GLfloat));
+			memcpy(lineParam.colorGradient, cfg.colorGradient, 4*4*sizeof(GLfloat));
 			lineParam.distCoeff[0] = 1.0f;
 			lineParam.distCoeff[1] = 0.0f;
 			lineParam.distCoeff[2] = 1.0f;
 			lineParam.distCoeff[3] = 0.0f;
 			screenSize = (width < height)?(float)width:(float)height;
-			lineParam.lineWidths[0] = (float)neighborhoodWidth / screenSize;
-			lineParam.lineWidths[1] = (float)trackWidth / screenSize;
-			lineParam.lineWidths[2] = (float)trackPointWidth / screenSize;
-			lineParam.lineWidths[3] = (float)trackPointWidth / screenSize;
+			lineParam.lineWidths[0] = (float)cfg.neighborhoodWidth / screenSize;
+			lineParam.lineWidths[1] = (float)cfg.trackWidth / screenSize;
+			lineParam.lineWidths[2] = (float)cfg.trackPointWidth / screenSize;
+			lineParam.lineWidths[3] = (float)cfg.trackPointWidth / screenSize;
 			break;
 		default:
 			gpxutil::warn("invalid UBO idx %d", i);
@@ -428,7 +431,7 @@ void CVis::MixTrackAndBackground(float factor)
 void CVis::Clear()
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	glClearColor(colorBackground[0], colorBackground[1], colorBackground[2], colorBackground[3]);
+	glClearColor(cfg.colorBackground[0], cfg.colorBackground[1], cfg.colorBackground[2], cfg.colorBackground[3]);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	for (int i=0; i<FB_COUNT; i++) {
@@ -452,15 +455,24 @@ bool CVis::GetImage(gpximg::CImg& img) const
 	return true;
 }
 
+void CVis::UpdateConfig()
+{
+	InitializeUBO(UBO_LINE);
+}
+
 /****************************************************************************
  * MANAGE ANIMATIONS AND MULTIPLE TRACKS                                    *
  ****************************************************************************/
 
-CAnimController::CAnimController() :
+CAnimController::TAnimConfig::TAnimConfig() :
 	animDeltaPerFrame(-1.0),
 	trackSpeed(3.0 * 3600.0),
 	fadeoutTime(0.5),
-	paused(false),
+	paused(false)
+{
+}
+
+CAnimController::CAnimController() :
 	curTrack(0),
 	curFrame(0),
 	curTime(0.0),
@@ -598,6 +610,24 @@ void CAnimController::UpdateTrack(size_t idx)
 	vis.SetPolygon(vertices);
 }
 
+void CAnimController::RestoreHistoryUpTo(size_t idx)
+{
+	size_t cnt = tracks.size();
+	vis.Clear();
+
+	if (cnt > 0) {
+		if (idx > cnt) {
+			idx = cnt;
+		}
+		for (size_t i=0; i<idx; i++) {
+			UpdateTrack(i);
+			vis.AddToBackground();
+		}
+		UpdateTrack(curTrack);
+	}
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
+
 void CAnimController::DropGL()
 {
 	vis.DropGL();
@@ -662,20 +692,20 @@ bool CAnimController::UpdateStep(double timeDelta)
 
 double CAnimController::GetAnimationTime(double deltaTime) const
 {
-	if (paused) {
+	if (animCfg.paused) {
 		return animationTime;
 	}
-	if (animDeltaPerFrame < 0.0) {
-		return animationTime - animDeltaPerFrame * deltaTime;
+	if (animCfg.animDeltaPerFrame < 0.0) {
+		return animationTime - animCfg.animDeltaPerFrame * deltaTime;
 	} else {
-		return animationTime + animDeltaPerFrame;
+		return animationTime + animCfg.animDeltaPerFrame;
 	}
 }
 
 float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 {
 	double t = animationTime - phaseEntryTime;
-	double x = t * trackSpeed;
+	double x = t * animCfg.trackSpeed;
 	if (x >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
 		x = tracks[curTrack].GetDuration();
@@ -686,8 +716,8 @@ float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 float CAnimController::GetFadeoutAnimation(TPhase& nextPhase)
 {
 	double t = (animationTime - phaseEntryTime);
-	if (fadeoutTime > 0.0) {
-		t = t / fadeoutTime;
+	if (animCfg.fadeoutTime > 0.0) {
+		t = t / animCfg.fadeoutTime;
 	} else {
 		t = 1.01;
 	}
