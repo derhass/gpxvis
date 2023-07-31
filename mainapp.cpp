@@ -5,9 +5,11 @@
 #include "util.h"
 #include "vis.h"
 
+#ifdef GPXVIS_WITH_IMGUI
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,6 +39,7 @@ struct AppConfig {
 	unsigned int frameCount;
 	DebugOutputLevel debugOutputLevel;
 	bool debugOutputSynchronous;
+	bool withGUI;
 	char *outputFrames;
 
 	AppConfig() :
@@ -49,6 +52,11 @@ struct AppConfig {
 		frameCount(0),
 		debugOutputLevel(DEBUG_OUTPUT_DISABLED),
 		debugOutputSynchronous(false),
+#ifdef GPXVIS_WITH_IMGUI
+		withGUI(true),
+#else
+		withGUI(false),
+#endif
 		outputFrames(NULL)
 	{
 #ifndef NDEBUG
@@ -82,6 +90,7 @@ typedef struct {
 /* flags */
 #define APP_HAVE_GLFW	0x1	/* we have called glfwInit() and should terminate it */
 #define APP_HAVE_GL	0x2	/* we have a valid GL context */
+#define APP_HAVE_IMGUI	0x4	/* we have Dear ImGui initialized */
 
 /****************************************************************************
  * SETTING UP THE GL STATE                                                  *
@@ -302,15 +311,22 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 
 	app->flags |= APP_HAVE_GL;
 
-	/* initialize imgui */
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+	if (cfg.withGUI) {
+#ifdef GPXVIS_WITH_IMGUI
+		/* initialize imgui */
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO();
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-	// Setup Platform/Renderer backends
-	ImGui_ImplGlfw_InitForOpenGL(app->win, true);
-	ImGui_ImplOpenGL3_Init();
+		// Setup Platform/Renderer backends
+		ImGui_ImplGlfw_InitForOpenGL(app->win, true);
+		ImGui_ImplOpenGL3_Init();
+		app->flags |= APP_HAVE_IMGUI;
+#else
+		gpxutil::warn("GUI requested but Dear ImGui not compiled in!");
+#endif
+	}
 
 	/* initialize the GL context */
 	initGLState(cfg);
@@ -337,9 +353,13 @@ static void destroyMainApp(MainApp *app)
 			if (app->flags & APP_HAVE_GL) {
 				app->animCtrl.DropGL();
 				/* shut down imgui */
-				ImGui_ImplOpenGL3_Shutdown();
-				ImGui_ImplGlfw_Shutdown();
-				ImGui::DestroyContext();				
+#ifdef GPXVIS_WITH_IMGUI
+				if (app->flags & APP_HAVE_IMGUI) {
+					ImGui_ImplOpenGL3_Shutdown();
+					ImGui_ImplGlfw_Shutdown();
+					ImGui::DestroyContext();				
+				}
+#endif
 			}
 			glfwDestroyWindow(app->win);
 		}
@@ -351,6 +371,7 @@ static void destroyMainApp(MainApp *app)
  * DRAWING FUNCTION                                                         *
  ****************************************************************************/
 
+#ifdef GPXVIS_WITH_IMGUI
 static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 {
 	ImGui::Begin("frameinfo", NULL,
@@ -369,6 +390,7 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 	}
 	ImGui::End();
 }
+#endif
 
 /* This draws the complete scene for a single eye */
 static void
@@ -380,12 +402,13 @@ drawScene(MainApp *app, const AppConfig& cfg)
 	GLsizei w = vis.GetWidth();
 	GLsizei h = vis.GetHeight();
 
-	ImGui_ImplOpenGL3_NewFrame();
-	if (cfg.outputFrames && animCtrl.IsPrepared()) {
+#ifdef GPXVIS_WITH_IMGUI
+	if ((app->flags & APP_HAVE_IMGUI ) && cfg.outputFrames && animCtrl.IsPrepared()) {
 		float scale = 2.0f;
 		// Render some stuff to the image itself
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vis.GetImageFBO());
 
+		ImGui_ImplOpenGL3_NewFrame();
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2((float)vis.GetWidth()/scale, (float)vis.GetHeight()/scale);
 		io.DisplayFramebufferScale = ImVec2(scale, scale);
@@ -400,6 +423,8 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}
+#endif
+
 	/* set the viewport (might have changed since last iteration) */
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glViewport(0, 0, app->width, app->height);
@@ -431,7 +456,9 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
-	if (!cfg.outputFrames) {
+#ifdef GPXVIS_WITH_IMGUI
+	if (!cfg.outputFrames && (app->flags & APP_HAVE_IMGUI)) {
+		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
@@ -473,11 +500,10 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 		//
 		ImGui::ShowDemoWindow();
-
-
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}
+#endif
 }
 
 
@@ -579,6 +605,10 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 			cfg.decorated = false;
 		} else if (!strcmp(argv[i], "--gl-debug-sync")) {
 			cfg.debugOutputSynchronous = true;
+		} else if (!strcmp(argv[i], "--no-gui")) {
+			cfg.withGUI = false;
+		} else if (!strcmp(argv[i], "--with-gui")) {
+			cfg.withGUI = true;
 		} else {
 			bool unhandled = false;
 			if (i + 1 < argc) {
@@ -596,6 +626,7 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					cfg.debugOutputLevel = (DebugOutputLevel)strtoul(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--output-frames")) {
 					cfg.outputFrames = argv[++i];
+					cfg.withGUI = false;
 				} else if (!strcmp(argv[i], "--output-fps")) {
 					double fps = strtod(argv[++i], NULL);
 					app.animCtrl.SetAnimSpeed(1.0/fps);
