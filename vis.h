@@ -25,6 +25,9 @@ class CVis {
 			GLfloat neighborhoodWidth;
 
 			TConfig();
+			void Reset();
+			void ResetColors();
+			void ResetWidths();
 		};
 
 		CVis();
@@ -118,6 +121,8 @@ class CAnimController {
 			bool          paused;
 
 			TAnimConfig();
+			void Reset();
+			void ResetSpeeds();
 		};
 
 		CAnimController();
@@ -145,6 +150,7 @@ class CAnimController {
 		size_t GetCurrentTrackIndex() const {return curTrack;}
 		const gpx::CTrack& GetCurrentTrack() const {return tracks[curTrack];}
 		void ChangeTrack(int delta);
+		void SwitchToTrack(size_t idx);
 
 		void RestoreHistoryUpTo(size_t idx);
 

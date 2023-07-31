@@ -33,6 +33,17 @@ struct lineParam {
 
 CVis::TConfig::TConfig()
 {
+	Reset();
+}
+
+void CVis::TConfig::Reset()
+{
+	ResetColors();
+	ResetWidths();
+}
+
+void CVis::TConfig::ResetColors()
+{
 	colorBackground[0] = 0.0f;
 	colorBackground[1] = 0.0f;
 	colorBackground[2] = 0.0f;
@@ -62,7 +73,10 @@ CVis::TConfig::TConfig()
 	colorGradient[3][1] = 1.0f;
 	colorGradient[3][2] = 1.0f;
 	colorGradient[3][3] = 1.0f;
+}
 
+void CVis::TConfig::ResetWidths()
+{
 	trackWidth = 5.0f;
 	trackPointWidth = 10.0f;
 	neighborhoodWidth = 3.0f;
@@ -464,12 +478,22 @@ void CVis::UpdateConfig()
  * MANAGE ANIMATIONS AND MULTIPLE TRACKS                                    *
  ****************************************************************************/
 
-CAnimController::TAnimConfig::TAnimConfig() :
-	animDeltaPerFrame(-1.0),
-	trackSpeed(3.0 * 3600.0),
-	fadeoutTime(0.5),
-	paused(false)
+CAnimController::TAnimConfig::TAnimConfig()
 {
+	Reset();
+}
+
+void CAnimController::TAnimConfig::Reset()
+{
+	ResetSpeeds();
+	paused = false;
+}
+
+void CAnimController::TAnimConfig::ResetSpeeds()
+{
+	animDeltaPerFrame = -1.0;
+	trackSpeed = 3.0 * 3600.0;
+	fadeoutTime = 0.5;
 }
 
 CAnimController::CAnimController() :
@@ -746,6 +770,20 @@ void CAnimController::ChangeTrack(int delta)
 		size_t off = (size_t) delta;
 		curTrack = (curTrack + off) % tracks.size();
 	}
+	UpdateTrack(curTrack);
+	curPhase = PHASE_INIT;
+}
+
+void CAnimController::SwitchToTrack(size_t idx)
+{
+	if (tracks.size() < 1) {
+		return;
+	}
+
+	if (idx >= tracks.size()) {
+		idx = tracks.size() -1;
+	}
+	curTrack = idx;
 	UpdateTrack(curTrack);
 	curPhase = PHASE_INIT;
 }

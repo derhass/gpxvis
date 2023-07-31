@@ -11,6 +11,7 @@
 #include "imgui_impl_opengl3.h"
 #endif
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -393,58 +394,144 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 	ImGui::End();
 }
 
-static void drawMainWindow(gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
+static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
 {
 	bool modified = false;
 
 	bool modifiedHistory = false;
 	ImGui::Begin("gpxvis");
-	if (animCtrl.GetTrackCount()) {
-		ImGui::Text("Track #%d of %d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
-		const gpx::CTrack& track = animCtrl.GetCurrentTrack();
-		ImGui::Text("%s %s", track.GetFilename(), track.GetInfo());
-		if (ImGui::Button("Play")) {
-			animCtrl.Play();
-		}
-		if (ImGui::Button("Pause")) {
-			animCtrl.Pause();
-		}
-		if (ImGui::Button("Next")) {
-			animCtrl.ChangeTrack(1);
+	size_t cnt = animCtrl.GetTrackCount();
+	char buf[16];
+	if (cnt > 0) {
+		mysnprintf(buf,sizeof(buf), "#%d/%d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)cnt);
+	} else {
+		mysnprintf(buf,sizeof(buf), "(none)");
+	}
+	buf[sizeof(buf)-1]=0;
+
+
+	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
+	if (ImGui::BeginTable("tracksplit", 3)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5, 0.0f))) {
+			animCtrl.SwitchToTrack(0);
 			modifiedHistory = true;
 		}
-		if (ImGui::Button("Prev")) {
+		ImGui::SameLine();
+		float startPos = ImGui::GetCursorPosX();
+		ImGui::PushButtonRepeat(true);
+		if (ImGui::Button("<", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			animCtrl.ChangeTrack(-1);
 			modifiedHistory = true;
 		}
-		if (ImGui::Button("Clear Background")) {
+		ImGui::PopButtonRepeat();
+		float bWidth = ImGui::GetCursorPosX() - startPos;
+
+		ImGui::TableNextColumn();
+		//ImGui::SetCursorPosX(0.5f*(ImGui::GetContentRegionAvail().x));
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX()+0.5*(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(buf).x));
+		ImGui::TextUnformatted(buf);
+		ImGui::TableNextColumn();
+		ImGui::PushButtonRepeat(true);
+		if (ImGui::Button(">", ImVec2(bWidth, 0.0f))) {
+			animCtrl.ChangeTrack(1);
+			modifiedHistory = true;
+		}
+		ImGui::PopButtonRepeat();
+		ImGui::SameLine();
+		if (ImGui::Button(">>|", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.SwitchToTrack(cnt);
+			modifiedHistory = true;
+		}
+		ImGui::EndTable();
+	}
+	if (ImGui::BeginTable("controls", 3)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button(animCfg.paused?"Play":"Pause", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCfg.paused = !animCfg.paused;
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Clear All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			vis.Clear();
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		}
-	} else {
-		ImGui::Text("no tracks loaded");
-	} 
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.RestoreHistoryUpTo(cnt);
+		}
+		ImGui::EndTable();
+	}
+	static const gpx::CTrack defaultTrack;
+	const gpx::CTrack *curTrack = &defaultTrack;
+	if (cnt > 0) {
+		curTrack = &animCtrl.GetCurrentTrack();
+	}
+	ImGui::Text("File: %s", curTrack->GetFilename());
+	if (ImGui::BeginTable("infosplit", 3)) {
+		ImGui::TableNextColumn();
+		ImGui::Text("%s", curTrack->GetInfo());
+		ImGui::TableNextColumn();
+		ImGui::Text("Len: %.1f", curTrack->GetLength());
+		ImGui::TableNextColumn();
+		int thrs = (int)floor(curTrack->GetDuration() / 3600.0);
+		int tmin = (int)floor((curTrack->GetDuration() - 3600.0*thrs) / 60.0);
+		ImGui::Text("Dur: %02d:%02d", thrs, tmin);
+		ImGui::EndTable();
+	}
 
-	ImGui::SeparatorText("Animation Control");
-	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
-	float trackSpeed = animCfg.trackSpeed/3600.0f;
-	if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
-		animCfg.trackSpeed = trackSpeed * 3600.0;
-	}
-	float fadeout = animCfg.fadeoutTime;
-	if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
-		animCfg.fadeoutTime = fadeout;
-	}
-	static float speedup = 1.0f;
-	if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
-		animCtrl.SetAnimSpeed(-speedup);
-	}
-	if (ImGui::Button("Reset Animation Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-		animCfg = gpxvis::CAnimController::TAnimConfig();
-		speedup = 1.0f;
+	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SeparatorText("Animation Speed");
+		static int timestepMode = 0;
+		static float fixedTimestep = 1000.0f/60.0f;
+		bool timestepModified = false;
+		ImGui::TextUnformatted("Timestep: ");
+		ImGui::SameLine();
+		if (ImGui::RadioButton("dynamic", &timestepMode, 0)) {
+			timestepModified = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::RadioButton("fixed", &timestepMode, 1)) {
+			timestepModified = true;
+		}
+		if (timestepMode) {
+			if (ImGui::SliderFloat("fixed timestep", &fixedTimestep, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic)) {
+				timestepModified = true;
+			}
+		} else {
+			float value = (float)app->timeDelta * 1000.0f;
+			ImGui::SliderFloat("dynamic timestep", &value, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic);
+		}
+
+		float trackSpeed = animCfg.trackSpeed/3600.0f;
+		if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoInput)) {
+			animCfg.trackSpeed = trackSpeed * 3600.0;
+		}
+		float fadeout = animCfg.fadeoutTime;
+		if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+			animCfg.fadeoutTime = fadeout;
+		}
+		static float speedup = 1.0f;
+		if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
+			timestepModified = true;
+		}
+		if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCfg.ResetSpeeds();
+			speedup = 1.0f;
+			timestepMode = 0;
+			fixedTimestep = 1000.0f/60.0f;
+			timestepModified = true;
+		}
+		if (timestepModified) {
+			if (timestepMode == 1) {
+				animCtrl.SetAnimSpeed(fixedTimestep/1000.0);
+			} else {
+				animCtrl.SetAnimSpeed(-speedup);
+			}
+		}
+		ImGui::TreePop();
 	}
 
-	if (ImGui::TreeNode("Parameters")) {
+	if (ImGui::TreeNodeEx("Visualization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SeparatorText("Track Colors");
 		gpxvis::CVis::TConfig& cfg=vis.GetConfig();
 		if (ImGui::ColorEdit3("track history", cfg.colorBase)) {
@@ -467,6 +554,11 @@ static void drawMainWindow(gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
 			modified = true;
 			modifiedHistory = true;
 		}
+		if (ImGui::Button("Reset Colors", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			cfg.ResetColors();
+			modified = true;
+			modifiedHistory = true;
+		}
 		ImGui::SeparatorText("Line Parameters");
 		if (ImGui::SliderFloat("track width", &cfg.trackWidth, 0.0f, 32.0f)) {
 			modified = true;
@@ -478,9 +570,8 @@ static void drawMainWindow(gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
 			modified = true;
 			modifiedHistory = true;
 		}
-		ImGui::SeparatorText("Defaults");
-		if (ImGui::Button("Reset Visualization Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			cfg = gpxvis::CVis::TConfig();
+		if (ImGui::Button("Reset Line Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			cfg.ResetWidths();
 			modified = true;
 			modifiedHistory = true;
 		}
@@ -573,7 +664,7 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		ImGui::SetNextWindowSize(ImVec2(newWidth, newHeight));
 		drawTrackStatus(animCtrl);
 		
-		drawMainWindow(animCtrl, vis);
+		drawMainWindow(app, animCtrl, vis);
 
 		ImGui::ShowDemoWindow(); // TODO: remove
 		ImGui::Render();

@@ -179,7 +179,7 @@ void CTrack::Reset()
 	totalLen = 0.0;
 	totalDuration = 0.0;
 	fullFilename.clear();
-	info.clear();
+	info = "(empty track)";
 }
 
 void CTrack::GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const
