@@ -479,7 +479,8 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		ImGui::TableNextColumn();
 		int thrs = (int)floor(curTrack->GetDuration() / 3600.0);
 		int tmin = (int)floor((curTrack->GetDuration() - 3600.0*thrs) / 60.0);
-		ImGui::Text("Dur: %02d:%02d", thrs, tmin);
+		int tsec = (int)floor((curTrack->GetDuration() - 3600.0*thrs - 60.0*tmin));
+		ImGui::Text("Dur: %02d:%02d:%02d", thrs, tmin, tsec);
 		ImGui::EndTable();
 	}
 
@@ -494,12 +495,12 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, curTrack->GetDuration()-1.0f, "%.1f")) {
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
-		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, curTrack->GetLength(), "%.001f")) {
+		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, curTrack->GetLength(), "%.3f")) {
 			trackUpTo = curTrack->GetPointByDistance((double)trackPos);
 			trackTime = curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
-		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount(), "%.01f")) {
+		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount(), "%.2f")) {
 			trackTime = curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
