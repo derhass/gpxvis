@@ -41,6 +41,7 @@ struct AppConfig {
 	DebugOutputLevel debugOutputLevel;
 	bool debugOutputSynchronous;
 	bool withGUI;
+	bool exitAfterOutputFrames;
 	char *outputFrames;
 
 	AppConfig() :
@@ -58,6 +59,7 @@ struct AppConfig {
 #else
 		withGUI(false),
 #endif
+		exitAfterOutputFrames(true),
 		outputFrames(NULL)
 	{
 #ifndef NDEBUG
@@ -422,10 +424,15 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 	ImGui::End();
 }
 
-static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
+static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
 {
 	bool modified = false;
 	bool modifiedHistory = false;
+	static bool first  = true;
+	static char outputFilename[256];
+	if (first) {
+		strcpy(outputFilename, "gpxvis_");
+	}
 
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
@@ -494,6 +501,9 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		ImGui::EndTable();
 	}
 	static const gpx::CTrack defaultTrack;
+	static int timestepMode = 0;
+	static float fixedTimestep = 1000.0f/60.0f;
+	static float speedup = 1.0f;
 	const gpx::CTrack *curTrack = &defaultTrack;
 	if (cnt > 0) {
 		curTrack = &animCtrl.GetCurrentTrack();
@@ -538,8 +548,6 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 
 		ImGui::SeparatorText("Animation Speed");
-		static int timestepMode = 0;
-		static float fixedTimestep = 1000.0f/60.0f;
 		bool timestepModified = false;
 		ImGui::TextUnformatted("Timestep: ");
 		ImGui::SameLine();
@@ -567,7 +575,6 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
 			animCfg.fadeoutTime = fadeout;
 		}
-		static float speedup = 1.0f;
 		if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
 			timestepModified = true;
 		}
@@ -686,6 +693,29 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 		ImGui::TreePop();
 	}
+	if (ImGui::TreeNodeEx("Output")) {
+		static bool forceFixedTimestep = true;
+		static bool withLabel = false;
+		static bool exitAfter = false;
+		ImGui::SeparatorText("Output to Files");
+		ImGui::InputText("filename prefix", outputFilename, sizeof(outputFilename));
+		ImGui::Checkbox("force fixed timestep", &forceFixedTimestep);
+		ImGui::Checkbox("render text labels into images", &withLabel);
+		ImGui::Checkbox("exit application when finished", &exitAfter);
+
+		if (ImGui::Button("Render Animation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			vis.Clear();
+			animCtrl.SwitchToTrack(0);
+			if (forceFixedTimestep) {
+				animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+			}
+			animCtrl.Play();
+			cfg.outputFrames = outputFilename;
+			cfg.exitAfterOutputFrames = exitAfter;
+			cfg.withGUI = withLabel;
+		}
+		ImGui::TreePop();
+	}
 
 	if (modified) {
 		vis.UpdateConfig();
@@ -699,12 +729,13 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 	}
 	ImGui::End();
 	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	first  = false;
 }
 #endif
 
 /* This draws the complete scene for a single eye */
 static void
-drawScene(MainApp *app, const AppConfig& cfg)
+drawScene(MainApp *app, AppConfig& cfg)
 {
 	gpxvis::CAnimController& animCtrl = app->animCtrl;
 	gpxvis::CVis& vis = animCtrl.GetVis();
@@ -713,7 +744,7 @@ drawScene(MainApp *app, const AppConfig& cfg)
 	GLsizei h = vis.GetHeight();
 
 #ifdef GPXVIS_WITH_IMGUI
-	if ((app->flags & APP_HAVE_IMGUI ) && cfg.outputFrames && animCtrl.IsPrepared()) {
+	if ((app->flags & APP_HAVE_IMGUI ) && cfg.outputFrames && cfg.withGUI && animCtrl.IsPrepared()) {
 		float scale = 2.0f;
 		// Render some stuff to the image itself
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vis.GetImageFBO());
@@ -779,7 +810,7 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		drawTrackStatus(animCtrl);
 		*/
 		
-		drawMainWindow(app, animCtrl, vis);
+		drawMainWindow(app, cfg, animCtrl, vis);
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -791,7 +822,7 @@ drawScene(MainApp *app, const AppConfig& cfg)
 /* The main drawing function. This is responsible for drawing the next frame,
  * it is called in a loop as long as the application runs */
 static bool
-displayFunc(MainApp *app, const AppConfig& cfg)
+displayFunc(MainApp *app, AppConfig& cfg)
 {
 	// Render an animation frame
 	bool cycleFinished = app->animCtrl.UpdateStep(app->timeDelta);
@@ -805,7 +836,10 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 			img.WriteTGA(buf);
 		}
 		if (cycleFinished) {
-			return false;
+			cfg.outputFrames = NULL;
+			if (cfg.exitAfterOutputFrames) {
+				return false;
+			}
 		}
 	}
 
@@ -826,7 +860,7 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 /* The main loop of the application. This will call the display function
  *  until the application is closed. This function also keeps timing
  *  statistics. */
-static void mainLoop(MainApp *app, const AppConfig& cfg)
+static void mainLoop(MainApp *app, AppConfig& cfg)
 {
 	unsigned int frame=0;
 	double start_time=glfwGetTime();
