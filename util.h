@@ -135,5 +135,12 @@ class CAABB {
 		double aabb[6];
 };
 
+/****************************************************************************
+ * MISC UTILITIES                                                           *
+ ****************************************************************************/
+
+/* round GLsizei to next multiple of base */
+extern GLsizei roundNextMultiple(GLsizei value, GLsizei base);
+
 } // namespace gpxutil
 #endif // GPXVIS_UTIL_H

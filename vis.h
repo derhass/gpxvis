@@ -62,6 +62,8 @@ class CVis {
 		TConfig& GetConfig() {return cfg;} // use UpdateConfig after you modified something!
 		void UpdateConfig();
 
+		float  GetDataAspect() const {return dataAspect;}
+
 	private:
 		typedef enum {
 			SSBO_LINE,

@@ -84,6 +84,9 @@ typedef struct {
 	double avg_fps;
 	unsigned int frame;
 
+	// some gl limits
+	int maxGlTextureSize;
+	int maxGlSize;
 	// actual visualizer
 	gpxvis::CAnimController animCtrl;
 } MainApp;
@@ -129,7 +132,7 @@ debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
 
 /* Initialize the global OpenGL state. This is called once after the context
  * is created. */
-static void initGLState(const AppConfig&cfg)
+static void initGLState(MainApp* app, const AppConfig& cfg)
 {
 	gpxutil::printGLInfo();
 	//listGLExtensions();
@@ -168,6 +171,31 @@ static void initGLState(const AppConfig&cfg)
 
 	glDepthFunc(GL_LESS);
 	glClearDepth(1.0f);
+
+	app->maxGlTextureSize = 4096;
+	GLint maxViewport[2] = { 4096, 4096};
+	GLint maxFB[2] = {4096, 4096};
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &app->maxGlTextureSize);
+	glGetIntegerv(GL_MAX_VIEWPORT_DIMS, maxViewport);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_WIDTH, &maxFB[0]);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT, &maxFB[1]);
+	gpxutil::info("GL limits: tex size: %d, viewport: %dx%d, framebuffer: %dx%d",
+			app->maxGlTextureSize, maxViewport[0], maxViewport[1], maxFB[0], maxFB[1]);
+	app->maxGlSize = app->maxGlTextureSize;
+	if (maxViewport[0] < app->maxGlSize) {
+		app->maxGlSize = maxViewport[0];
+	}
+	if (maxViewport[1] < app->maxGlSize) {
+		app->maxGlSize = maxViewport[1];
+	}
+	if (maxFB[0] < app->maxGlSize) {
+		app->maxGlSize = maxFB[0];
+	}
+	if (maxFB[1] < app->maxGlSize) {
+		app->maxGlSize = maxFB[1];
+	}
+	gpxutil::info("GL limits: tex size: %d, viewport: %dx%d, framebuffer: %dx%d, using limt: %d",
+			app->maxGlTextureSize, maxViewport[0], maxViewport[1], maxFB[0], maxFB[1], app->maxGlSize);
 }
 
 /****************************************************************************
@@ -332,7 +360,7 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 	}
 
 	/* initialize the GL context */
-	initGLState(cfg);
+	initGLState(app, cfg);
 
 	// TODO ...
 	if (!app->animCtrl.Prepare(app->width,app->height)) {
@@ -532,7 +560,7 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 
 		float trackSpeed = animCfg.trackSpeed/3600.0f;
-		if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_NoInput)) {
+		if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
 			animCfg.trackSpeed = trackSpeed * 3600.0;
 		}
 		float fadeout = animCfg.fadeoutTime;
@@ -614,14 +642,60 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 		ImGui::TreePop();
 	}
+	if (ImGui::TreeNodeEx("Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+		static int renderSize[2] = {-1, -1};
+		int maxSize = 8192;
+		if (app->maxGlSize < maxSize) {
+			maxSize = app->maxGlSize;
+		}
+		ImGui::SeparatorText("Render Settings");
+		if (ImGui::BeginTable("renderinfosplit", 2)) {
+			ImGui::TableNextColumn();
+			ImGui::Text("Resolution: %dx%d", (int)vis.GetWidth(), (int)vis.GetHeight());
+			ImGui::TableNextColumn();
+			ImGui::Text("data aspect ratio: %.3f", vis.GetDataAspect());
+			ImGui::EndTable();
+		}
+		if (renderSize[0] < 0) {
+			renderSize[0] = (int)vis.GetWidth();
+		}
+		if (renderSize[1] < 0) {
+			renderSize[1] = (int)vis.GetHeight();
+		}
+		if (ImGui::SliderInt("render width", &renderSize[0], 256, maxSize, "%dpx")) {
+			renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[0], 8);
+		}
+		if (ImGui::SliderInt("render height", &renderSize[1], 256, maxSize, "%dpx")) {
+			renderSize[1] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[1], 8);
+		}
+		if (ImGui::BeginTable("renderbuttonssplit", 2)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Apply", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.Prepare((GLsizei)renderSize[0], (GLsizei)renderSize[1]);
+				modifiedHistory = true;
+				modified = true;
+				renderSize[0] = -1;
+				renderSize[1] = -1;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Cancel", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				renderSize[0] = -1;
+				renderSize[1] = -1;
+			}
+			ImGui::EndTable();
+		}
+		ImGui::TreePop();
+	}
 
 	if (modified) {
 		vis.UpdateConfig();
-		animCtrl.RefreshCurrentTrack();
 	}
 	if (modifiedHistory) {
 		size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
 		animCtrl.RestoreHistoryUpTo(curTrackIdx);
+	}
+	if (modified) {
+		animCtrl.RefreshCurrentTrack();
 	}
 	ImGui::End();
 	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
