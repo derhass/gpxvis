@@ -475,7 +475,7 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		ImGui::TableNextColumn();
 		ImGui::Text("%s", curTrack->GetInfo());
 		ImGui::TableNextColumn();
-		ImGui::Text("Len: %.1f", curTrack->GetLength());
+		ImGui::Text("Len: %.1f (%dpts)", curTrack->GetLength(), (int)curTrack->GetCount());
 		ImGui::TableNextColumn();
 		int thrs = (int)floor(curTrack->GetDuration() / 3600.0);
 		int tmin = (int)floor((curTrack->GetDuration() - 3600.0*thrs) / 60.0);
@@ -485,9 +485,23 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 
 	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::SeparatorText("Animation Position");
-		float trackPos = (float)animCtrl.GetCurrentTrackPos();
-		if (ImGui::SliderFloat("track time", &trackPos, 0.0f, curTrack->GetDuration()-1.0f, "%.1f")) {
-			animCtrl.SetCurrentTrackPos((double)trackPos);
+		float trackUpTo = animCtrl.GetCurrentTrackUpTo();
+		float trackTime = (float)animCtrl.GetCurrentTrackPos();
+		float trackPos = (float)curTrack->GetDistanceAt(trackUpTo);
+		if (trackUpTo < 0.0f) {
+			trackUpTo = (float)curTrack->GetCount();
+		}
+		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, curTrack->GetDuration()-1.0f, "%.1f")) {
+			animCtrl.SetCurrentTrackPos((double)trackTime);
+		}
+		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, curTrack->GetLength(), "%.001f")) {
+			trackUpTo = curTrack->GetPointByDistance((double)trackPos);
+			trackTime = curTrack->GetDurationAt(trackUpTo);
+			animCtrl.SetCurrentTrackPos((double)trackTime);
+		}
+		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount(), "%.01f")) {
+			trackTime = curTrack->GetDurationAt(trackUpTo);
+			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
 		float fadeRatio = animCtrl.GetCurrentFadeRatio();
 		if (ImGui::SliderFloat("fade-out", &fadeRatio, 0.0f, 1.0f, "%.2f")) {

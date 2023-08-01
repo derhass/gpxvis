@@ -310,5 +310,34 @@ float CTrack::GetPointByDuration(double duration) const
 	return (float)window[0] + rel;
 }
 
+double CTrack::GetDistanceAt(float animPos) const
+{
+	if (points.size() < 2) {
+		return 0.0;
+	}
+	size_t ptIdx = (size_t)animPos;
+	float  rel = animPos - floorf(animPos);
+	if (animPos < 0.0 || ptIdx >= points.size()) {
+		return GetLength();
+	}
+	return points[ptIdx].posOnTrack + rel * points[ptIdx].len;
+}
+
+double CTrack::GetDurationAt(float animPos) const
+{
+	if (points.size() < 2) {
+		return 0.0;
+	}
+	size_t ptIdx = (size_t)animPos;
+	float  rel = animPos - floorf(animPos);
+	if (animPos < 0.0 || ptIdx >= points.size()) {
+		return GetDuration();
+	}
+	return points[ptIdx].timeOnTrack + rel * points[ptIdx].duration;
+	if (animPos < 0.0) {
+		return GetDuration();
+	}
+}
+
 } // namespace gpx
 

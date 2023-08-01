@@ -39,6 +39,9 @@ class CTrack {
 		float  GetPointByDistance(double distance) const;
 		float  GetPointByDuration(double duration) const;
 
+		double GetDistanceAt(float animPos) const;
+		double GetDurationAt(float animPos) const;
+
 		const char* GetFilename() const {return fullFilename.c_str();}
 		const char* GetInfo() const {return info.c_str();}
 
