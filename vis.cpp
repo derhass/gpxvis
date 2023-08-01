@@ -539,6 +539,7 @@ CAnimController::CAnimController() :
 	curTime(0.0),
 	curPhase(PHASE_INIT),
 	prepared(false),
+	newCycle(true),
 	animationTime(0.0)
 {
 }
@@ -709,8 +710,10 @@ bool CAnimController::UpdateStep(double timeDelta)
 
 	return;
 	*/
-	curFrame++;
-	curTime += timeDelta;
+	if (!animCfg.paused) {
+		curFrame++;
+		curTime += timeDelta;
+	}
 
 	animationTimeDelta = GetAnimationTimeDelta(timeDelta);
 	animationTime += animationTimeDelta;
@@ -719,6 +722,11 @@ bool CAnimController::UpdateStep(double timeDelta)
 
 	switch(curPhase) {
 		case PHASE_INIT:
+			if (newCycle) {
+				animationTime = 0.0;
+				curFrame = 0;
+				newCycle = false;
+			}
 			vis.DrawTrack(0.0f);
 			vis.MixTrackAndBackground(1.0f);
 			nextPhase = PHASE_TRACK;
@@ -746,6 +754,7 @@ bool CAnimController::UpdateStep(double timeDelta)
 			vis.AddLineToNeighborhood();
 			if (++curTrack >= tracks.size()) {
 				cycleFinished = true;
+				newCycle = true;
 				animationTime = 0.0;
 				if (animCfg.pauseAtCycle) {
 					animCfg.paused = true;
@@ -866,6 +875,15 @@ void CAnimController::RefreshCurrentTrack()
 		vis.DrawTrack(curTrackUpTo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	}
+}
+
+void CAnimController::ResetAnimation()
+{
+	newCycle = true;
+	SwitchToTrack(0);
+	curPhase = PHASE_INIT;
+	vis.Clear();
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
 } // namespace gpxvis

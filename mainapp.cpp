@@ -417,6 +417,28 @@ static void destroyMainApp(MainApp *app)
  * DRAWING FUNCTION                                                         *
  ****************************************************************************/
 
+static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *namePrefix, const char *additionalPrefix, unsigned long number)
+{
+	if (!namePrefix) {
+		namePrefix = "gpxvis_";
+	}
+	if (!additionalPrefix) {
+		additionalPrefix = "";
+	}
+
+	gpximg::CImg img;
+	if (animCtrl.GetVis().GetImage(img)) {
+		char buf[4096];
+		mysnprintf(buf, sizeof(buf), "%s%s%06lu.tga", namePrefix, additionalPrefix, number);
+		img.WriteTGA(buf);
+	}
+}
+
+static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *namePrefix)
+{
+	saveCurrentFrame(animCtrl, namePrefix, NULL, animCtrl.GetFrame());
+}
+
 #ifdef GPXVIS_WITH_IMGUI
 static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 {
@@ -774,6 +796,16 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Animation Position");
+		if (ImGui::BeginTable("animinfosplit", 3)) {
+			ImGui::TableNextColumn();
+			ImGui::Text("frame: %lu", animCtrl.GetFrame());
+			ImGui::TableNextColumn();
+			ImGui::Text("time: %.2fs", animCtrl.GetTime());
+			ImGui::TableNextColumn();
+			ImGui::Text("delta: %.1fms", animCtrl.GetAnimationDelta()*1000.0);
+			ImGui::EndTable();
+		}
+		
 		float trackUpTo = animCtrl.GetCurrentTrackUpTo();
 		float trackTime = (float)animCtrl.GetCurrentTrackPos();
 		float trackPos = (float)curTrack->GetDistanceAt(trackUpTo);
@@ -959,16 +991,24 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::Checkbox("render text labels into images", &withLabel);
 		ImGui::Checkbox("exit application when finished", &exitAfter);
 
-		if (ImGui::Button("Render Animation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			vis.Clear();
-			animCtrl.SwitchToTrack(0);
-			if (forceFixedTimestep) {
-				animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+		if (ImGui::BeginTable("outputbuttonssplit", 2)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Render Animation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.ResetAnimation();
+				if (forceFixedTimestep) {
+					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+				}
+				animCtrl.Play();
+				cfg.outputFrames = outputFilename;
+				cfg.exitAfterOutputFrames = exitAfter;
+				cfg.withGUI = withLabel;
 			}
-			animCtrl.Play();
-			cfg.outputFrames = outputFilename;
-			cfg.exitAfterOutputFrames = exitAfter;
-			cfg.withGUI = withLabel;
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Save current frame", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				static unsigned long currentFrameIdx = 0;
+				saveCurrentFrame(animCtrl, outputFilename, "current_", currentFrameIdx++);
+			}
+			ImGui::EndTable();
 		}
 		ImGui::EndDisabled();
 		ImGui::TreePop();
@@ -1089,11 +1129,7 @@ displayFunc(MainApp *app, AppConfig& cfg)
 
 	if (cfg.outputFrames) {
 		gpximg::CImg img;
-		if (app->animCtrl.GetVis().GetImage(img)) {
-			char buf[4096];
-			mysnprintf(buf, sizeof(buf), "%s%06lu.tga", cfg.outputFrames, app->animCtrl.GetFrame());
-			img.WriteTGA(buf);
-		}
+		saveCurrentFrame(app->animCtrl, cfg.outputFrames);
 		if (cycleFinished) {
 			cfg.outputFrames = NULL;
 			if (cfg.exitAfterOutputFrames) {

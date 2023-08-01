@@ -146,6 +146,8 @@ class CAnimController {
 		CVis& GetVis() {return vis;}
 
 		unsigned long GetFrame() const {return curFrame;}
+		double GetTime() const {return animationTime;}
+		double GetAnimationDelta() const {return animationTimeDelta;}
 		bool IsPrepared() const {return prepared;}
 
 		void SetAnimSpeed(double s) {animCfg.animDeltaPerFrame = s;}
@@ -169,6 +171,7 @@ class CAnimController {
 		std::vector<gpx::CTrack>& GetTracks() {return tracks;} // call Prepare after you modified these...
 
 		void RestoreHistoryUpTo(size_t idx, bool history=true, bool neighborhood=true);
+		void ResetAnimation();
 
 		float GetCurrentFadeRatio() const {return curFadeRatio;}
 		void SetCurrentFadeRatio(float v) {curFadeRatio = v; curFadeTime = curFadeRatio * animCfg.fadeoutTime; }
@@ -189,6 +192,7 @@ class CAnimController {
 		double        curTime;
 		TPhase        curPhase;
 		bool          prepared;
+		bool          newCycle;
 
 		double        animationTime;
 		double        animationTimeDelta;
