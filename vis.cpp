@@ -429,6 +429,20 @@ void CVis::AddToBackground()
 	DrawNeighborhood();
 }
 
+void CVis::AddLineToBackground()
+{
+	glViewport(0,0,width,height);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
+	DrawSimple();
+}
+
+void CVis::AddLineToNeighborhood()
+{
+	glViewport(0,0,width,height);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
+	DrawNeighborhood();
+}
+
 void CVis::MixTrackAndBackground(float factor)
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_FINAL]);
@@ -486,6 +500,7 @@ CAnimController::TAnimConfig::TAnimConfig()
 void CAnimController::TAnimConfig::Reset()
 {
 	ResetSpeeds();
+	ResetAtCycle();
 	paused = false;
 }
 
@@ -496,12 +511,19 @@ void CAnimController::TAnimConfig::ResetSpeeds()
 	fadeoutTime = 0.5;
 }
 
+void CAnimController::TAnimConfig::ResetAtCycle()
+{
+	pauseAtCycle = true;
+	clearAtCycle = false;
+}
+
 CAnimController::CAnimController() :
 	curTrack(0),
 	curFrame(0),
 	curTime(0.0),
 	curPhase(PHASE_INIT),
-	prepared(false)
+	prepared(false),
+	animationTime(0.0)
 {
 }
 
@@ -672,7 +694,8 @@ bool CAnimController::UpdateStep(double timeDelta)
 	curFrame++;
 	curTime += timeDelta;
 
-	animationTime = GetAnimationTime(timeDelta);
+	animationTimeDelta = GetAnimationTimeDelta(timeDelta);
+	animationTime += animationTimeDelta;
 
 	TPhase nextPhase = curPhase;
 
@@ -681,25 +704,41 @@ bool CAnimController::UpdateStep(double timeDelta)
 			vis.DrawTrack(0.0f);
 			vis.MixTrackAndBackground(1.0f);
 			nextPhase = PHASE_TRACK;
+			curTrackPos = 0.0;
+			curTrackUpTo = 0.0f;
+			curFadeRatio = 0.0f;
 			break;
 		case PHASE_TRACK:
+			curTrackUpTo = GetTrackAnimation(nextPhase);
 			vis.DrawTrack(GetTrackAnimation(nextPhase));
-			vis.MixTrackAndBackground(1.0f);
+			vis.MixTrackAndBackground(1.0f - curFadeRatio);
 			break;
 		case PHASE_FADEOUT_INIT:
 			vis.DrawTrack(-1.0f);
-			vis.AddToBackground();
+			vis.AddLineToBackground();
 			vis.MixTrackAndBackground(1.0f);
 			nextPhase = PHASE_FADEOUT;
+			curFadeTime = curFadeRatio * animCfg.fadeoutTime;
+			curTrackUpTo = -1.0f;
 			break;
 		case PHASE_FADEOUT:
 			vis.MixTrackAndBackground(GetFadeoutAnimation(nextPhase));
 			break;
 		case PHASE_SWITCH_TRACK:
+			vis.AddLineToNeighborhood();
 			if (++curTrack >= tracks.size()) {
 				cycleFinished = true;
+				animationTime = 0.0;
+				if (animCfg.pauseAtCycle) {
+					animCfg.paused = true;
+				}
 				curTrack = 0;
+				if (animCfg.clearAtCycle) {
+					vis.Clear();
+				}
 			}
+			curFadeRatio = 0.0f;
+			curFadeTime = 0.0;
 			UpdateTrack(curTrack);
 			nextPhase = PHASE_INIT;
 			break;
@@ -714,42 +753,41 @@ bool CAnimController::UpdateStep(double timeDelta)
 	return cycleFinished;
 }
 
-double CAnimController::GetAnimationTime(double deltaTime) const
+double CAnimController::GetAnimationTimeDelta(double deltaTime) const
 {
 	if (animCfg.paused) {
-		return animationTime;
+		return 0.0;
 	}
 	if (animCfg.animDeltaPerFrame < 0.0) {
-		return animationTime - animCfg.animDeltaPerFrame * deltaTime;
+		return (-animCfg.animDeltaPerFrame) * deltaTime;
 	} else {
-		return animationTime + animCfg.animDeltaPerFrame;
+		return animCfg.animDeltaPerFrame;
 	}
 }
 
 float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 {
-	double t = animationTime - phaseEntryTime;
-	double x = t * animCfg.trackSpeed;
-	if (x >= tracks[curTrack].GetDuration()) {
+	curTrackPos += animationTimeDelta * animCfg.trackSpeed;
+	if (curTrackPos >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
-		x = tracks[curTrack].GetDuration();
+		curTrackPos = tracks[curTrack].GetDuration();
 	}
-	return tracks[curTrack].GetPointByDuration(x);
+	return tracks[curTrack].GetPointByDuration(curTrackPos);
 }
 
 float CAnimController::GetFadeoutAnimation(TPhase& nextPhase)
 {
-	double t = (animationTime - phaseEntryTime);
+	curFadeTime += animationTimeDelta;
 	if (animCfg.fadeoutTime > 0.0) {
-		t = t / animCfg.fadeoutTime;
+		curFadeRatio  = (float)(curFadeTime / animCfg.fadeoutTime);
 	} else {
-		t = 1.01;
+		curFadeRatio = 1.01f;
 	}
-	if (t > 1.0) {
-		t = 1.0;
+	if (curFadeRatio > 1.0f) {
+		curFadeRatio = 1.0f;
 		nextPhase = PHASE_SWITCH_TRACK;
 	}
-	return (float)(1.0-t);
+	return (1.0f-curFadeRatio);
 }
 
 void CAnimController::ChangeTrack(int delta)
@@ -786,6 +824,25 @@ void CAnimController::SwitchToTrack(size_t idx)
 	curTrack = idx;
 	UpdateTrack(curTrack);
 	curPhase = PHASE_INIT;
+}
+
+void CAnimController::SetCurrentTrackPos(double v)
+{
+	animationTimeDelta = 0.0;
+	curTrackPos = v;
+	TPhase ignored;
+	float upTo = GetTrackAnimation(ignored);
+	(void)ignored;
+	SetCurrentTrackUpTo(upTo);
+}
+
+void CAnimController::SetCurrentTrackUpTo(float v)
+{
+	curTrackUpTo = v;
+	if (curPhase != PHASE_TRACK) {
+		vis.DrawTrack(curTrackUpTo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
 }
 
 } // namespace gpxvis

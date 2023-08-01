@@ -397,8 +397,12 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
 {
 	bool modified = false;
-
 	bool modifiedHistory = false;
+
+	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(500, 0), ImGuiCond_FirstUseEver);
+
 	ImGui::Begin("gpxvis");
 	size_t cnt = animCtrl.GetTrackCount();
 	char buf[16];
@@ -415,7 +419,7 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		ImGui::TableNextColumn();
 		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5, 0.0f))) {
 			animCtrl.SwitchToTrack(0);
-			modifiedHistory = true;
+			modifiedHistory = animCfg.clearAtCycle;
 		}
 		ImGui::SameLine();
 		float startPos = ImGui::GetCursorPosX();
@@ -480,6 +484,16 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 	}
 
 	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SeparatorText("Animation Position");
+		float trackPos = (float)animCtrl.GetCurrentTrackPos();
+		if (ImGui::SliderFloat("track time", &trackPos, 0.0f, curTrack->GetDuration()-1.0f, "%.1f")) {
+			animCtrl.SetCurrentTrackPos((double)trackPos);
+		}
+		float fadeRatio = animCtrl.GetCurrentFadeRatio();
+		if (ImGui::SliderFloat("fade-out", &fadeRatio, 0.0f, 1.0f, "%.2f")) {
+			animCtrl.SetCurrentFadeRatio(fadeRatio);
+		}
+
 		ImGui::SeparatorText("Animation Speed");
 		static int timestepMode = 0;
 		static float fixedTimestep = 1000.0f/60.0f;
@@ -523,10 +537,18 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 		if (timestepModified) {
 			if (timestepMode == 1) {
-				animCtrl.SetAnimSpeed(fixedTimestep/1000.0);
+				animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
 			} else {
 				animCtrl.SetAnimSpeed(-speedup);
 			}
+		}
+		ImGui::SeparatorText("Animation Options");
+		if (ImGui::BeginTable("animoptionssplit", 2)) {
+			ImGui::TableNextColumn();
+			ImGui::Checkbox("Pause at end", &animCfg.pauseAtCycle);
+			ImGui::TableNextColumn();
+			ImGui::Checkbox("Clear at end", &animCfg.clearAtCycle);
+			ImGui::EndTable();
 		}
 		ImGui::TreePop();
 	}
@@ -627,7 +649,8 @@ drawScene(MainApp *app, const AppConfig& cfg)
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glViewport(0, 0, app->width, app->height);
 
-	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+	const gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
+	glClearColor(visCfg.colorBackground[0], visCfg.colorBackground[1], visCfg.colorBackground[2], visCfg.colorBackground[3]);
 	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
 
 	GLsizei widthOffset=0;
@@ -643,7 +666,7 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		if (winAspect > imgAspect) {
 			float scale = (float)app->height / (float)h;
 			newWidth = (GLsizei)(scale * w + 0.5f);
-			widthOffset = (app->width - newWidth) / 2;
+			widthOffset = (app->width - newWidth);
 		} else {
 			float scale = (float)app->width / (float)w;
 			newHeight = (GLsizei)(scale * h + 0.5f);
@@ -660,13 +683,14 @@ drawScene(MainApp *app, const AppConfig& cfg)
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
+		/*
 		ImGui::SetNextWindowPos(ImVec2(widthOffset, heightOffset));
 		ImGui::SetNextWindowSize(ImVec2(newWidth, newHeight));
 		drawTrackStatus(animCtrl);
+		*/
 		
 		drawMainWindow(app, animCtrl, vis);
 
-		ImGui::ShowDemoWindow(); // TODO: remove
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}

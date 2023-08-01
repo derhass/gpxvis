@@ -48,6 +48,8 @@ class CVis {
 		void DrawNeighborhood();
 
 		void AddToBackground();
+		void AddLineToBackground();
+		void AddLineToNeighborhood();
 		void MixTrackAndBackground(float factor);
 
 		void Clear();
@@ -119,10 +121,13 @@ class CAnimController {
 			double        trackSpeed;        // 1.0 is realtime
 			double        fadeoutTime;	 // seconds
 			bool          paused;
+			bool          pauseAtCycle;
+			bool          clearAtCycle;
 
 			TAnimConfig();
 			void Reset();
 			void ResetSpeeds();
+			void ResetAtCycle();
 		};
 
 		CAnimController();
@@ -149,10 +154,17 @@ class CAnimController {
 		size_t GetTrackCount() const {return tracks.size();}
 		size_t GetCurrentTrackIndex() const {return curTrack;}
 		const gpx::CTrack& GetCurrentTrack() const {return tracks[curTrack];}
+		double GetCurrentTrackPos() const {return curTrackPos;}
+		float GetCurrentTrackUpTo() const {return curTrackUpTo;}
+		void SetCurrentTrackPos(double v);
+		void SetCurrentTrackUpTo(float v);
 		void ChangeTrack(int delta);
 		void SwitchToTrack(size_t idx);
 
 		void RestoreHistoryUpTo(size_t idx);
+
+		float GetCurrentFadeRatio() const {return curFadeRatio;}
+		void SetCurrentFadeRatio(float v) {curFadeRatio = v; curFadeTime = curFadeRatio * animCfg.fadeoutTime; }
 
 	private:
 		typedef enum {
@@ -172,7 +184,12 @@ class CAnimController {
 		bool          prepared;
 
 		double        animationTime;
+		double        animationTimeDelta;
 		double        phaseEntryTime;
+		double        curTrackPos;
+		float         curTrackUpTo;
+		float         curFadeRatio;
+		double        curFadeTime;
 
 		double        offset[3];
 		double        scale[3];
@@ -183,7 +200,7 @@ class CAnimController {
 
 		void   UpdateTrack(size_t idx);
 
-		double GetAnimationTime(double deltaTime) const;
+		double GetAnimationTimeDelta(double deltaTime) const;
 		float  GetTrackAnimation(TPhase& nextPhase);
 		float  GetFadeoutAnimation(TPhase& nextPhase);
 };
