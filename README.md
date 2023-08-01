@@ -5,6 +5,7 @@ may find it useful.
 
 ## Caveats:
 
+* gpx file selection is done via command line, the GUI track manager can add only single files, without any file dialog
 * gpx reading doesn't use an XML parser, it just collects the value out of the raw text, works well enough with real world files, but may break with yours
 * used GL version is probably 4.5, but 4.6 is requested in any case
 * only Linux Makefile is provided, building on other platforms should work without much hassle, but I don't care

@@ -551,13 +551,13 @@ bool CAnimController::AddTrack(const char *filename)
 		tracks.resize(idx);
 		return false;
 	}
-	aabb.MergeWith(tracks[idx].GetAABB());
 	prepared = false;
 	return true;
 }
 
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
+	prepared = false;
 	if (tracks.size() < 1) {
 		gpxutil::warn("anim controller without tracks");
 		return false;
@@ -565,7 +565,9 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 
 	double totalLen = 0.0;
 	double totalDur = 0.0;
+	aabb.Reset();
 	for(size_t i=0; i<tracks.size(); i++) {
+		aabb.MergeWith(tracks[i].GetAABB());
 		totalLen += tracks[i].GetLength();
 		totalDur += tracks[i].GetDuration();
 	}
@@ -601,6 +603,9 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 		return false;
 	}
 
+	if (curTrack >= tracks.size()) {
+		curTrack = tracks.size()-1;
+	}
 	UpdateTrack(curTrack);
 
 	/*

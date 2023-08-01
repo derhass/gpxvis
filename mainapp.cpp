@@ -437,12 +437,157 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 	ImGui::End();
 }
 
+static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis, bool *isOpen)
+{
+	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 600, main_viewport->WorkPos.y+100), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(512, 0), ImGuiCond_FirstUseEver);
+	std::vector<gpx::CTrack>& tracks=animCtrl.GetTracks();
+	bool modified = false;
+	static size_t curIdx = 0;
+	if (!ImGui::Begin("Track Manager", isOpen)) {
+		ImGui::End();
+	}
+	ImGui::SeparatorText("Files:");
+	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN,  24 * ImGui::GetTextLineHeightWithSpacing()))) {
+		for (size_t i=0; i<tracks.size(); i++) {
+			char info[512];
+			mysnprintf(info, sizeof(info), "%d. %s [%s]", (int)(i+1), tracks[i].GetFilename(), tracks[i].GetInfo());
+			info[sizeof(info)-1]=0;
+			bool isSelected = (curIdx == i);
+			if (ImGui::Selectable(info, isSelected)) {
+				curIdx = i;
+			}
+			if (isSelected) {
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndListBox();
+	}
+	std::vector<gpx::CTrack>::iterator it=tracks.begin();
+	std::advance(it, curIdx);
+	if (ImGui::BeginTable("managerpertracksplit", 6)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Switch to", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 0) {
+				animCtrl.SwitchToTrack(curIdx);
+				// TODO: modifiedHistory = animCfg.clearAtCycle;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("To Front", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.insert(tracks.begin(), tmp);
+				curIdx = 0;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Move Up", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1 && curIdx > 0) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.insert(tracks.begin()+(curIdx-1), tmp);
+				curIdx--;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Move Down", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1 && curIdx + 1 < tracks.size()) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.insert(tracks.begin()+(curIdx+1), tmp);
+				curIdx++;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("To End", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.push_back(tmp);
+				curIdx = tracks.size()-1;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 0) {
+				tracks.erase(it);
+				if (curIdx >= tracks.size()) {
+					curIdx = tracks.size();
+					if (curIdx > 0) {
+						curIdx--;
+					}
+				}
+				modified = true;
+			}
+		}
+		ImGui::EndTable();
+	}
+	if (ImGui::BeginTable("managerpertracksplit2", 2)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove all Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			tracks.clear();
+			curIdx = 0;
+			modified = true;
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove all Others", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.clear();
+				tracks.push_back(tmp);
+				curIdx = 0;
+				modified = true;
+			}
+		}
+		ImGui::EndTable();
+	}
+
+	ImGui::SeparatorText("Add files");
+	static char bufPath[256];
+	ImGui::InputText("filename", bufPath, sizeof(bufPath));
+	if (ImGui::BeginTable("manageraddsplit", 2)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Add File", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.AddTrack(bufPath);
+			modified = true;
+		}
+		ImGui::TableNextColumn();
+		ImGui::BeginDisabled();
+		if (ImGui::Button("Add Files", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+		}
+		ImGui::EndDisabled();
+		ImGui::EndTable();
+	}
+
+	if (modified) {
+		GLsizei w = vis.GetWidth();
+		GLsizei h = vis.GetHeight();
+		if (w < 1) {
+			w = (GLsizei)app->width;
+		}
+		if (h < 1) {
+			h = (GLsizei)app->height;
+		}
+		animCtrl.Prepare(w,h);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
+	ImGui::End();
+}
+
 static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
 {
 	bool modified = false;
 	bool modifiedHistory = false;
 	static bool first  = true;
 	static char outputFilename[256];
+	static bool showTrackManager = false;
 	if (first) {
 		strcpy(outputFilename, "gpxvis_");
 	}
@@ -451,8 +596,14 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(512, 0), ImGuiCond_FirstUseEver);
 
-	ImGui::Begin("gpxvis");
+	ImGui::Begin("Main Controls");
 	size_t cnt = animCtrl.GetTrackCount();
+	bool disabled = (cnt < 1);
+
+	if (first && disabled) {
+		showTrackManager = true;
+	}
+
 	char buf[16];
 	if (cnt > 0) {
 		mysnprintf(buf,sizeof(buf), "#%d/%d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)cnt);
@@ -462,7 +613,9 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	buf[sizeof(buf)-1]=0;
 
 
+
 	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
+	ImGui::BeginDisabled(disabled);
 	if (ImGui::BeginTable("tracksplit", 3)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5, 0.0f))) {
@@ -497,10 +650,17 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::EndTable();
 	}
-	if (ImGui::BeginTable("controls", 2)) {
+	ImGui::EndDisabled();
+	if (ImGui::BeginTable("controls", 3)) {
+		ImGui::BeginDisabled(disabled);
 		ImGui::TableNextColumn();
 		if (ImGui::Button(animCfg.paused?"Play":"Pause", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			animCfg.paused = !animCfg.paused;
+		}
+		ImGui::EndDisabled();
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Manage Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			showTrackManager = !showTrackManager;
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Quit", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -530,6 +690,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndTable();
 	}
 	if (ImGui::TreeNodeEx("Histroy Maniupulation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Manipulate History and Neighborhood");
 		if (ImGui::BeginTable("histcontrolsplit1", 5)) {
 			ImGui::TableNextColumn();
@@ -606,10 +767,12 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			}
 			ImGui::EndTable();
 		}
+		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
 
 	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Animation Position");
 		float trackUpTo = animCtrl.GetCurrentTrackUpTo();
 		float trackTime = (float)animCtrl.GetCurrentTrackPos();
@@ -687,10 +850,12 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			ImGui::Checkbox("Clear at end", &animCfg.clearAtCycle);
 			ImGui::EndTable();
 		}
+		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
 
 	if (ImGui::TreeNodeEx("Visualization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Track Colors");
 		gpxvis::CVis::TConfig& cfg=vis.GetConfig();
 		if (ImGui::ColorEdit3("track history", cfg.colorBase)) {
@@ -734,9 +899,11 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			modified = true;
 			modifiedHistory = true;
 		}
+		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
 	if (ImGui::TreeNodeEx("Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
 		static int renderSize[2] = {-1, -1};
 		int maxSize = 8192;
 		if (app->maxGlSize < maxSize) {
@@ -778,9 +945,11 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			}
 			ImGui::EndTable();
 		}
+		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
 	if (ImGui::TreeNodeEx("Output")) {
+		ImGui::BeginDisabled(disabled);
 		static bool forceFixedTimestep = true;
 		static bool withLabel = false;
 		static bool exitAfter = false;
@@ -801,8 +970,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			cfg.exitAfterOutputFrames = exitAfter;
 			cfg.withGUI = withLabel;
 		}
+		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
+	ImGui::End();
 
 	if (modified) {
 		vis.UpdateConfig();
@@ -814,7 +985,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (modified) {
 		animCtrl.RefreshCurrentTrack();
 	}
-	ImGui::End();
+
+	if (showTrackManager) {
+		drawTrackManager(app, animCtrl, vis, &showTrackManager);
+	}
 	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	first  = false;
 }
@@ -896,9 +1070,7 @@ drawScene(MainApp *app, AppConfig& cfg)
 		ImGui::SetNextWindowSize(ImVec2(newWidth, newHeight));
 		drawTrackStatus(animCtrl);
 		*/
-		
 		drawMainWindow(app, cfg, animCtrl, vis);
-
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}

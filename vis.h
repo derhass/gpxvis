@@ -166,6 +166,7 @@ class CAnimController {
 		void RefreshCurrentTrack();
 		void ChangeTrack(int delta);
 		void SwitchToTrack(size_t idx);
+		std::vector<gpx::CTrack>& GetTracks() {return tracks;} // call Prepare after you modified these...
 
 		void RestoreHistoryUpTo(size_t idx, bool history=true, bool neighborhood=true);
 
