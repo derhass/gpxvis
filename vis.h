@@ -158,6 +158,7 @@ class CAnimController {
 		float GetCurrentTrackUpTo() const {return curTrackUpTo;}
 		void SetCurrentTrackPos(double v);
 		void SetCurrentTrackUpTo(float v);
+		void RefreshCurrentTrack();
 		void ChangeTrack(int delta);
 		void SwitchToTrack(size_t idx);
 

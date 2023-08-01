@@ -839,6 +839,11 @@ void CAnimController::SetCurrentTrackPos(double v)
 void CAnimController::SetCurrentTrackUpTo(float v)
 {
 	curTrackUpTo = v;
+	RefreshCurrentTrack();
+}
+
+void CAnimController::RefreshCurrentTrack()
+{
 	if (curPhase != PHASE_TRACK) {
 		vis.DrawTrack(curTrackUpTo);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);

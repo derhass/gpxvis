@@ -602,6 +602,7 @@ static void drawMainWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 
 	if (modified) {
 		vis.UpdateConfig();
+		animCtrl.RefreshCurrentTrack();
 	}
 	if (modifiedHistory) {
 		size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
