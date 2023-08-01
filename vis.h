@@ -52,6 +52,8 @@ class CVis {
 		void AddLineToNeighborhood();
 		void MixTrackAndBackground(float factor);
 
+		void ClearHistory();
+		void ClearNeighborHood();
 		void Clear();
 
 		GLsizei GetWidth() const {return width;}
@@ -156,6 +158,7 @@ class CAnimController {
 		size_t GetTrackCount() const {return tracks.size();}
 		size_t GetCurrentTrackIndex() const {return curTrack;}
 		const gpx::CTrack& GetCurrentTrack() const {return tracks[curTrack];}
+		const gpx::CTrack& GetiTrack(size_t idx) const {return tracks[idx];}
 		double GetCurrentTrackPos() const {return curTrackPos;}
 		float GetCurrentTrackUpTo() const {return curTrackUpTo;}
 		void SetCurrentTrackPos(double v);
@@ -164,7 +167,7 @@ class CAnimController {
 		void ChangeTrack(int delta);
 		void SwitchToTrack(size_t idx);
 
-		void RestoreHistoryUpTo(size_t idx);
+		void RestoreHistoryUpTo(size_t idx, bool history=true, bool neighborhood=true);
 
 		float GetCurrentFadeRatio() const {return curFadeRatio;}
 		void SetCurrentFadeRatio(float v) {curFadeRatio = v; curFadeTime = curFadeRatio * animCfg.fadeoutTime; }

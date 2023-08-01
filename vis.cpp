@@ -456,16 +456,32 @@ void CVis::MixTrackAndBackground(float factor)
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
-void CVis::Clear()
+void CVis::ClearHistory()
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
 	glClearColor(cfg.colorBackground[0], cfg.colorBackground[1], cfg.colorBackground[2], cfg.colorBackground[3]);
 	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void CVis::ClearNeighborHood()
+{
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void CVis::Clear()
+{
+	ClearHistory();
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	for (int i=0; i<FB_COUNT; i++) {
 		if (i != FB_BACKGROUND) {
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[i]);
-			glClear(GL_COLOR_BUFFER_BIT);
+			if (i == FB_TRACK) { 
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			} else {
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
 		}
 	}
 }
@@ -647,7 +663,7 @@ void CAnimController::UpdateTrack(size_t idx)
 	vis.SetPolygon(vertices);
 }
 
-void CAnimController::RestoreHistoryUpTo(size_t idx)
+void CAnimController::RestoreHistoryUpTo(size_t idx, bool history, bool neighborhood)
 {
 	size_t cnt = tracks.size();
 	vis.Clear();
@@ -658,7 +674,13 @@ void CAnimController::RestoreHistoryUpTo(size_t idx)
 		}
 		for (size_t i=0; i<idx; i++) {
 			UpdateTrack(i);
-			vis.AddToBackground();
+			if (history && neighborhood) {
+				vis.AddToBackground();
+			} else if (history) {
+				vis.AddLineToBackground();
+			} else if (neighborhood) {
+				vis.AddLineToNeighborhood();
+			}
 		}
 		UpdateTrack(curTrack);
 	}

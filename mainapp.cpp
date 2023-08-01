@@ -77,6 +77,7 @@ struct AppConfig {
 typedef struct {
 	/* the window and related state */
 	GLFWwindow *win;
+	AppConfig* cfg;
 	int width, height;
 	unsigned int flags;
 
@@ -222,14 +223,25 @@ static void callback_Resize(GLFWwindow *win, int w, int h)
  * will call this whenever a key is pressed. */
 static void callback_Keyboard(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
-	//MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
+	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
+	AppConfig *cfg = app->cfg;
+
 	if (action == GLFW_PRESS) {
 		switch(key) {
 			case GLFW_KEY_ESCAPE:
 				glfwSetWindowShouldClose(win, 1);
 				break;
 		}
+		if (!cfg->outputFrames) {
+			gpxvis::CAnimController::TAnimConfig& animCfg = app->animCtrl.GetAnimConfig();
+			switch(key) {
+				case GLFW_KEY_SPACE:
+					animCfg.paused = !animCfg.paused;
+					break;
+			}
+		}
 	}
+
 }
 
 /****************************************************************************
@@ -241,13 +253,14 @@ static void callback_Keyboard(GLFWwindow *win, int key, int scancode, int action
  * (via GLFW), initialize the GL function pointers via GLEW and initialize
  * the cube.
  * Returns true if successfull or false if an error occured. */
-bool initMainApp(MainApp *app, const AppConfig& cfg)
+bool initMainApp(MainApp *app, AppConfig& cfg)
 {
 	int w, h, x, y;
 	bool debugCtx=(cfg.debugOutputLevel > DEBUG_OUTPUT_DISABLED);
 
 	/* Initialize the app structure */
 	app->win=NULL;
+	app->cfg=&cfg;
 	app->flags=0;
 	app->avg_frametime=-1.0;
 	app->avg_fps=-1.0;
@@ -436,7 +449,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(500, 0), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(512, 0), ImGuiCond_FirstUseEver);
 
 	ImGui::Begin("gpxvis");
 	size_t cnt = animCtrl.GetTrackCount();
@@ -484,19 +497,14 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::EndTable();
 	}
-	if (ImGui::BeginTable("controls", 3)) {
+	if (ImGui::BeginTable("controls", 2)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button(animCfg.paused?"Play":"Pause", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			animCfg.paused = !animCfg.paused;
 		}
 		ImGui::TableNextColumn();
-		if (ImGui::Button("Clear All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			vis.Clear();
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			animCtrl.RestoreHistoryUpTo(cnt);
+		if (ImGui::Button("Quit", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			glfwSetWindowShouldClose(app->win, 1);
 		}
 		ImGui::EndTable();
 	}
@@ -520,6 +528,85 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		int tsec = (int)floor((curTrack->GetDuration() - 3600.0*thrs - 60.0*tmin));
 		ImGui::Text("Dur: %02d:%02d:%02d", thrs, tmin, tsec);
 		ImGui::EndTable();
+	}
+	if (ImGui::TreeNodeEx("Histroy Maniupulation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::SeparatorText("Manipulate History and Neighborhood");
+		if (ImGui::BeginTable("histcontrolsplit1", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("History:");
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Clear", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.ClearHistory();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Current", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.AddLineToBackground();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Up To", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetCurrentTrackIndex(), true, false);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetTrackCount(), true, false);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::EndTable();
+		}
+		if (ImGui::BeginTable("histcontrolsplit2", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Neighborhood:");
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Clear", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.ClearNeighborHood();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Current", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.AddLineToNeighborhood();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Up To", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetCurrentTrackIndex(), false, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetTrackCount(), false, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::EndTable();
+		}
+		if (ImGui::BeginTable("histcontrolsplit3", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Both:");
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Clear", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.Clear();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Current", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.AddToBackground();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Up To", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetCurrentTrackIndex(), true, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetTrackCount(), true, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::EndTable();
+		}
+		ImGui::TreePop();
 	}
 
 	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
