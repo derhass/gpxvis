@@ -17,9 +17,24 @@ CFLAGS =   $(SHAREDFLAGS) -g
 CXXFLAGS = $(SHAREDFLAGS) -g
 endif
 
+#check if Dear ImGui is available
+IMGUI_SRCFILES=$(wildcard imgui/*.cpp)
+ifneq ("$(IMGUI_SRCFILES)","")
+    WITH_IMGUI=1
+    IMGUI_MISSING=0
+else
+    WITH_IMGUI=0
+    IMGUI_MISSING=1
+endif
+
+
 # include paths for the builtin libraries glad and glm. We do not link them,
 # as we directly incorporated the source code into our project
-CPPFLAGS += -I glad/include -I glm/
+CPPFLAGS += -I glad/include -I imgui -I imgui/backends
+
+ifeq ($(WITH_IMGUI), 1)
+CPPFLAGS +=  -I imgui -I imgui/backends -DGPXVIS_WITH_IMGUI
+endif
 
 # Try to find the system's GLFW3 library via pkg-config
 CPPFLAGS += $(shell pkg-config --cflags glfw3)
@@ -36,6 +51,9 @@ PRJFILES = Makefile $(wildcard *.vcxproj) $(wildcard *.sln)
 ALLFILES = $(SRCFILES) $(INCFILES) $(PRJFILES)
 OBJECTS = $(patsubst %.cpp,%.o,$(CPPFILES)) $(patsubst %.c,%.o,$(CFILES))
 	   
+ifeq ($(WITH_IMGUI), 1)
+CPPFILES += $(IMGUI_SRCFILES) imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_opengl3.cpp
+endif
 # build rules
 .PHONY: all
 all:	$(APPNAME)
@@ -58,6 +76,8 @@ $(DEPDIR)/dependencies: $(DEPDIR)/dir $(DEPFILES)
 $(DEPDIR)/dir:
 	@mkdir -p $(DEPDIR)
 	@mkdir -p $(DEPDIR)/glad/src
+	@mkdir -p $(DEPDIR)/imgui
+	@mkdir -p $(DEPDIR)/imgui/backends
 	@touch $(DEPDIR)/dir
 $(DEPDIR)/%.d: %.c $(DEPDIR)/dir
 	@echo rebuilding dependencies for $*
@@ -74,6 +94,9 @@ $(DEPDIR)/%.d: %.cpp $(DEPDIR)/dir
 # rule to build application
 $(APPNAME): $(OBJECTS) $(DEPDIR)/dependencies
 	$(CXX) $(CFLAGS) $(OBJECTS) $(LDFLAGS) -o$(APPNAME)
+ifeq ($(IMGUI_MISSING), 1)
+	@echo "WARNING: Build without imgui, did you forget to check out the submodule?"
+endif
 
 # remove all unneeded files
 .PHONY: clean

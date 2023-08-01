@@ -4,6 +4,13 @@
 #include <glad/gl.h>
 #include <stddef.h>
 
+/* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
+#ifdef WIN32
+#define mysnprintf sprintf_s
+#else
+#define mysnprintf snprintf
+#endif
+
 namespace gpxutil {
 
 /****************************************************************************
@@ -127,6 +134,13 @@ class CAABB {
 	private:
 		double aabb[6];
 };
+
+/****************************************************************************
+ * MISC UTILITIES                                                           *
+ ****************************************************************************/
+
+/* round GLsizei to next multiple of base */
+extern GLsizei roundNextMultiple(GLsizei value, GLsizei base);
 
 } // namespace gpxutil
 #endif // GPXVIS_UTIL_H

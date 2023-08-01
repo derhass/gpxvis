@@ -31,14 +31,18 @@ struct lineParam {
  * VISUALIZE A SINGLE POLYGON, MIX IT WITH THE HISTORY                      *
  ****************************************************************************/
 
-CVis::CVis() :
-	bufferVertexCount(0),
-	vertexCount(0),
-	width(0),
-	height(0),
-	dataAspect(0),
-	vaoEmpty(0),
-	texTrackDepth(0)
+CVis::TConfig::TConfig()
+{
+	Reset();
+}
+
+void CVis::TConfig::Reset()
+{
+	ResetColors();
+	ResetWidths();
+}
+
+void CVis::TConfig::ResetColors()
 {
 	colorBackground[0] = 0.0f;
 	colorBackground[1] = 0.0f;
@@ -69,11 +73,24 @@ CVis::CVis() :
 	colorGradient[3][1] = 1.0f;
 	colorGradient[3][2] = 1.0f;
 	colorGradient[3][3] = 1.0f;
+}
 
+void CVis::TConfig::ResetWidths()
+{
 	trackWidth = 5.0f;
 	trackPointWidth = 10.0f;
 	neighborhoodWidth = 3.0f;
+}
 
+CVis::CVis() :
+	bufferVertexCount(0),
+	vertexCount(0),
+	width(0),
+	height(0),
+	dataAspect(0),
+	vaoEmpty(0),
+	texTrackDepth(0)
+{
 	for (int i=0; i<SSBO_COUNT; i++) {
 		ssbo[i] = 0;
 	}
@@ -237,17 +254,17 @@ bool CVis::InitializeUBO(int i)
 		case UBO_LINE:
 			size = sizeof(ubo::lineParam);
 			ptr = &lineParam;
-			memcpy(lineParam.colorBase, colorBase, 4*sizeof(GLfloat));
-			memcpy(lineParam.colorGradient, colorGradient, 4*4*sizeof(GLfloat));
+			memcpy(lineParam.colorBase, cfg.colorBase, 4*sizeof(GLfloat));
+			memcpy(lineParam.colorGradient, cfg.colorGradient, 4*4*sizeof(GLfloat));
 			lineParam.distCoeff[0] = 1.0f;
 			lineParam.distCoeff[1] = 0.0f;
 			lineParam.distCoeff[2] = 1.0f;
 			lineParam.distCoeff[3] = 0.0f;
 			screenSize = (width < height)?(float)width:(float)height;
-			lineParam.lineWidths[0] = (float)neighborhoodWidth / screenSize;
-			lineParam.lineWidths[1] = (float)trackWidth / screenSize;
-			lineParam.lineWidths[2] = (float)trackPointWidth / screenSize;
-			lineParam.lineWidths[3] = (float)trackPointWidth / screenSize;
+			lineParam.lineWidths[0] = (float)cfg.neighborhoodWidth / screenSize;
+			lineParam.lineWidths[1] = (float)cfg.trackWidth / screenSize;
+			lineParam.lineWidths[2] = (float)cfg.trackPointWidth / screenSize;
+			lineParam.lineWidths[3] = (float)cfg.trackPointWidth / screenSize;
 			break;
 		default:
 			gpxutil::warn("invalid UBO idx %d", i);
@@ -412,6 +429,20 @@ void CVis::AddToBackground()
 	DrawNeighborhood();
 }
 
+void CVis::AddLineToBackground()
+{
+	glViewport(0,0,width,height);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
+	DrawSimple();
+}
+
+void CVis::AddLineToNeighborhood()
+{
+	glViewport(0,0,width,height);
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
+	DrawNeighborhood();
+}
+
 void CVis::MixTrackAndBackground(float factor)
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_FINAL]);
@@ -425,16 +456,32 @@ void CVis::MixTrackAndBackground(float factor)
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 }
 
-void CVis::Clear()
+void CVis::ClearHistory()
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	glClearColor(colorBackground[0], colorBackground[1], colorBackground[2], colorBackground[3]);
+	glClearColor(cfg.colorBackground[0], cfg.colorBackground[1], cfg.colorBackground[2], cfg.colorBackground[3]);
 	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void CVis::ClearNeighborHood()
+{
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void CVis::Clear()
+{
+	ClearHistory();
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	for (int i=0; i<FB_COUNT; i++) {
 		if (i != FB_BACKGROUND) {
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[i]);
-			glClear(GL_COLOR_BUFFER_BIT);
+			if (i == FB_TRACK) { 
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			} else {
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
 		}
 	}
 }
@@ -452,18 +499,47 @@ bool CVis::GetImage(gpximg::CImg& img) const
 	return true;
 }
 
+void CVis::UpdateConfig()
+{
+	InitializeUBO(UBO_LINE);
+}
+
 /****************************************************************************
  * MANAGE ANIMATIONS AND MULTIPLE TRACKS                                    *
  ****************************************************************************/
 
+CAnimController::TAnimConfig::TAnimConfig()
+{
+	Reset();
+}
+
+void CAnimController::TAnimConfig::Reset()
+{
+	ResetSpeeds();
+	ResetAtCycle();
+	paused = false;
+}
+
+void CAnimController::TAnimConfig::ResetSpeeds()
+{
+	animDeltaPerFrame = -1.0;
+	trackSpeed = 3.0 * 3600.0;
+	fadeoutTime = 0.5;
+}
+
+void CAnimController::TAnimConfig::ResetAtCycle()
+{
+	pauseAtCycle = true;
+	clearAtCycle = false;
+}
+
 CAnimController::CAnimController() :
-	animDeltaPerFrame(-1.0),
-	trackSpeed(3.0 * 3600.0),
-	fadeoutTime(0.5),
 	curTrack(0),
 	curFrame(0),
 	curTime(0.0),
-	curPhase(PHASE_INIT)
+	curPhase(PHASE_INIT),
+	prepared(false),
+	animationTime(0.0)
 {
 }
 
@@ -475,21 +551,13 @@ bool CAnimController::AddTrack(const char *filename)
 		tracks.resize(idx);
 		return false;
 	}
-	aabb.MergeWith(tracks[idx].GetAABB());
+	prepared = false;
 	return true;
-}
-
-static GLsizei roundNext(GLsizei value, GLsizei base)
-{
-	GLsizei rem = value % base;
-	if (rem) {
-		value += base - rem;
-	}
-	return value;
 }
 
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
+	prepared = false;
 	if (tracks.size() < 1) {
 		gpxutil::warn("anim controller without tracks");
 		return false;
@@ -497,7 +565,9 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 
 	double totalLen = 0.0;
 	double totalDur = 0.0;
+	aabb.Reset();
 	for(size_t i=0; i<tracks.size(); i++) {
+		aabb.MergeWith(tracks[i].GetAABB());
 		totalLen += tracks[i].GetLength();
 		totalDur += tracks[i].GetDuration();
 	}
@@ -523,8 +593,8 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	} else {
 		realHeight = (GLsizei)(height * (screenAspect/dataAspect) + 0.5);
 	}
-	realWidth = roundNext(realWidth, 8);
-	realHeight = roundNext(realHeight, 8);
+	realWidth = gpxutil::roundNextMultiple(realWidth, 8);
+	realHeight = gpxutil::roundNextMultiple(realHeight, 8);
 	gpxutil::info("adjusted rendering resolution from %ux%u (%f) to %ux%u (%f) to match data aspect %f",
 		(unsigned)width, (unsigned)height, screenAspect,
 		(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight, dataAspect);
@@ -533,7 +603,10 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 		return false;
 	}
 
-	UpdateTrack(0);
+	if (curTrack >= tracks.size()) {
+		curTrack = tracks.size()-1;
+	}
+	UpdateTrack(curTrack);
 
 	/*
 	std::vector<GLfloat> vertices;
@@ -584,6 +657,7 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	vertices.push_back(0.05f);
 	vis.SetPolygon(vertices);
 	*/
+	prepared = true;
 	return true;
 }
 
@@ -594,6 +668,30 @@ void CAnimController::UpdateTrack(size_t idx)
 	vis.SetPolygon(vertices);
 }
 
+void CAnimController::RestoreHistoryUpTo(size_t idx, bool history, bool neighborhood)
+{
+	size_t cnt = tracks.size();
+	vis.Clear();
+
+	if (cnt > 0) {
+		if (idx > cnt) {
+			idx = cnt;
+		}
+		for (size_t i=0; i<idx; i++) {
+			UpdateTrack(i);
+			if (history && neighborhood) {
+				vis.AddToBackground();
+			} else if (history) {
+				vis.AddLineToBackground();
+			} else if (neighborhood) {
+				vis.AddLineToNeighborhood();
+			}
+		}
+		UpdateTrack(curTrack);
+	}
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
+
 void CAnimController::DropGL()
 {
 	vis.DropGL();
@@ -601,6 +699,9 @@ void CAnimController::DropGL()
 
 bool CAnimController::UpdateStep(double timeDelta)
 {
+	if (!prepared) {
+		return false;
+	}
 	bool cycleFinished = false;
 	/*
 	vis.DrawTrack(-1.0f);
@@ -611,7 +712,8 @@ bool CAnimController::UpdateStep(double timeDelta)
 	curFrame++;
 	curTime += timeDelta;
 
-	animationTime = GetAnimationTime(timeDelta);
+	animationTimeDelta = GetAnimationTimeDelta(timeDelta);
+	animationTime += animationTimeDelta;
 
 	TPhase nextPhase = curPhase;
 
@@ -620,25 +722,41 @@ bool CAnimController::UpdateStep(double timeDelta)
 			vis.DrawTrack(0.0f);
 			vis.MixTrackAndBackground(1.0f);
 			nextPhase = PHASE_TRACK;
+			curTrackPos = 0.0;
+			curTrackUpTo = 0.0f;
+			curFadeRatio = 0.0f;
 			break;
 		case PHASE_TRACK:
+			curTrackUpTo = GetTrackAnimation(nextPhase);
 			vis.DrawTrack(GetTrackAnimation(nextPhase));
-			vis.MixTrackAndBackground(1.0f);
+			vis.MixTrackAndBackground(1.0f - curFadeRatio);
 			break;
 		case PHASE_FADEOUT_INIT:
 			vis.DrawTrack(-1.0f);
-			vis.AddToBackground();
+			vis.AddLineToBackground();
 			vis.MixTrackAndBackground(1.0f);
 			nextPhase = PHASE_FADEOUT;
+			curFadeTime = curFadeRatio * animCfg.fadeoutTime;
+			curTrackUpTo = -1.0f;
 			break;
 		case PHASE_FADEOUT:
 			vis.MixTrackAndBackground(GetFadeoutAnimation(nextPhase));
 			break;
 		case PHASE_SWITCH_TRACK:
+			vis.AddLineToNeighborhood();
 			if (++curTrack >= tracks.size()) {
 				cycleFinished = true;
+				animationTime = 0.0;
+				if (animCfg.pauseAtCycle) {
+					animCfg.paused = true;
+				}
 				curTrack = 0;
+				if (animCfg.clearAtCycle) {
+					vis.Clear();
+				}
 			}
+			curFadeRatio = 0.0f;
+			curFadeTime = 0.0;
 			UpdateTrack(curTrack);
 			nextPhase = PHASE_INIT;
 			break;
@@ -653,39 +771,101 @@ bool CAnimController::UpdateStep(double timeDelta)
 	return cycleFinished;
 }
 
-double CAnimController::GetAnimationTime(double deltaTime) const
+double CAnimController::GetAnimationTimeDelta(double deltaTime) const
 {
-	if (animDeltaPerFrame < 0.0) {
-		return animationTime - animDeltaPerFrame * deltaTime;
+	if (animCfg.paused) {
+		return 0.0;
+	}
+	if (animCfg.animDeltaPerFrame < 0.0) {
+		return (-animCfg.animDeltaPerFrame) * deltaTime;
 	} else {
-		return animationTime + animDeltaPerFrame;
+		return animCfg.animDeltaPerFrame;
 	}
 }
 
 float CAnimController::GetTrackAnimation(TPhase& nextPhase)
 {
-	double t = animationTime - phaseEntryTime;
-	double x = t * trackSpeed;
-	if (x >= tracks[curTrack].GetDuration()) {
+	curTrackPos += animationTimeDelta * animCfg.trackSpeed;
+	if (curTrackPos >= tracks[curTrack].GetDuration()) {
 		nextPhase = PHASE_FADEOUT_INIT;
-		x = tracks[curTrack].GetDuration();
+		curTrackPos = tracks[curTrack].GetDuration();
 	}
-	return tracks[curTrack].GetPointByDuration(x);
+	return tracks[curTrack].GetPointByDuration(curTrackPos);
 }
 
 float CAnimController::GetFadeoutAnimation(TPhase& nextPhase)
 {
-	double t = (animationTime - phaseEntryTime);
-	if (fadeoutTime > 0.0) {
-		t = t / fadeoutTime;
+	curFadeTime += animationTimeDelta;
+	if (animCfg.fadeoutTime > 0.0) {
+		curFadeRatio  = (float)(curFadeTime / animCfg.fadeoutTime);
 	} else {
-		t = 1.01;
+		curFadeRatio = 1.01f;
 	}
-	if (t > 1.0) {
-		t = 1.0;
+	if (curFadeRatio > 1.0f) {
+		curFadeRatio = 1.0f;
 		nextPhase = PHASE_SWITCH_TRACK;
 	}
-	return (float)(1.0-t);
+	return (1.0f-curFadeRatio);
+}
+
+void CAnimController::ChangeTrack(int delta)
+{
+	if (tracks.size() < 1 || !delta) {
+		return;
+	}
+
+	if (delta < 0) {
+		size_t off = (size_t) -delta;
+		off = off % tracks.size();
+		if (off > curTrack) {
+			curTrack = (curTrack + tracks.size() - off) % tracks.size();
+		} else {
+			curTrack -= off;
+		}
+	} else {
+		size_t off = (size_t) delta;
+		curTrack = (curTrack + off) % tracks.size();
+	}
+	UpdateTrack(curTrack);
+	curPhase = PHASE_INIT;
+}
+
+void CAnimController::SwitchToTrack(size_t idx)
+{
+	if (tracks.size() < 1) {
+		return;
+	}
+
+	if (idx >= tracks.size()) {
+		idx = tracks.size() -1;
+	}
+	curTrack = idx;
+	UpdateTrack(curTrack);
+	curPhase = PHASE_INIT;
+}
+
+void CAnimController::SetCurrentTrackPos(double v)
+{
+	animationTimeDelta = 0.0;
+	curTrackPos = v;
+	TPhase ignored;
+	float upTo = GetTrackAnimation(ignored);
+	(void)ignored;
+	SetCurrentTrackUpTo(upTo);
+}
+
+void CAnimController::SetCurrentTrackUpTo(float v)
+{
+	curTrackUpTo = v;
+	RefreshCurrentTrack();
+}
+
+void CAnimController::RefreshCurrentTrack()
+{
+	if (curPhase != PHASE_TRACK) {
+		vis.DrawTrack(curTrackUpTo);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
 }
 
 } // namespace gpxvis

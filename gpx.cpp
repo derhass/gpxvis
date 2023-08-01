@@ -159,7 +159,15 @@ bool CTrack::Load(const char *filename)
 	gpxutil::info("gpx file '%s': %llu points, total len: %f, duration: %f, aabb: (%f %f %f) - (%f %f %f)",
 			filename, (unsigned long long)GetCount(), totalLen, totalDuration,
 			a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
-
+	fullFilename = filename;
+	if (points.size() > 0) {
+		struct tm *tm;
+		char buf[64];
+		tm = localtime(&points[0].timestamp);
+		mysnprintf(buf, sizeof(buf), "%04d-%02d-%02d", tm->tm_year, tm->tm_mon+1, tm->tm_mday);
+		buf[sizeof(buf)-1] = 0;
+		info = buf;
+	}
 
 	return true;
 }
@@ -170,6 +178,8 @@ void CTrack::Reset()
 	aabb.Reset();
 	totalLen = 0.0;
 	totalDuration = 0.0;
+	fullFilename.clear();
+	info = "(empty track)";
 }
 
 void CTrack::GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const
@@ -298,6 +308,35 @@ float CTrack::GetPointByDuration(double duration) const
 		rel = 0.0f;
 	}
 	return (float)window[0] + rel;
+}
+
+double CTrack::GetDistanceAt(float animPos) const
+{
+	if (points.size() < 2) {
+		return 0.0;
+	}
+	size_t ptIdx = (size_t)animPos;
+	float  rel = animPos - floorf(animPos);
+	if (animPos < 0.0 || ptIdx >= points.size()) {
+		return GetLength();
+	}
+	return points[ptIdx].posOnTrack + rel * points[ptIdx].len;
+}
+
+double CTrack::GetDurationAt(float animPos) const
+{
+	if (points.size() < 2) {
+		return 0.0;
+	}
+	size_t ptIdx = (size_t)animPos;
+	float  rel = animPos - floorf(animPos);
+	if (animPos < 0.0 || ptIdx >= points.size()) {
+		return GetDuration();
+	}
+	return points[ptIdx].timeOnTrack + rel * points[ptIdx].duration;
+	if (animPos < 0.0) {
+		return GetDuration();
+	}
 }
 
 } // namespace gpx

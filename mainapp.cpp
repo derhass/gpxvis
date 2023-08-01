@@ -5,16 +5,16 @@
 #include "util.h"
 #include "vis.h"
 
+#ifdef GPXVIS_WITH_IMGUI
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#endif
+
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
-#ifdef WIN32
-#define mysnprintf sprintf_s
-#else
-#define mysnprintf snprintf
-#endif
 
 /****************************************************************************
  * DATA STRUCTURES                                                          *
@@ -40,6 +40,8 @@ struct AppConfig {
 	unsigned int frameCount;
 	DebugOutputLevel debugOutputLevel;
 	bool debugOutputSynchronous;
+	bool withGUI;
+	bool exitAfterOutputFrames;
 	char *outputFrames;
 
 	AppConfig() :
@@ -52,6 +54,12 @@ struct AppConfig {
 		frameCount(0),
 		debugOutputLevel(DEBUG_OUTPUT_DISABLED),
 		debugOutputSynchronous(false),
+#ifdef GPXVIS_WITH_IMGUI
+		withGUI(true),
+#else
+		withGUI(false),
+#endif
+		exitAfterOutputFrames(true),
 		outputFrames(NULL)
 	{
 #ifndef NDEBUG
@@ -69,6 +77,7 @@ struct AppConfig {
 typedef struct {
 	/* the window and related state */
 	GLFWwindow *win;
+	AppConfig* cfg;
 	int width, height;
 	unsigned int flags;
 
@@ -78,6 +87,9 @@ typedef struct {
 	double avg_fps;
 	unsigned int frame;
 
+	// some gl limits
+	int maxGlTextureSize;
+	int maxGlSize;
 	// actual visualizer
 	gpxvis::CAnimController animCtrl;
 } MainApp;
@@ -85,6 +97,7 @@ typedef struct {
 /* flags */
 #define APP_HAVE_GLFW	0x1	/* we have called glfwInit() and should terminate it */
 #define APP_HAVE_GL	0x2	/* we have a valid GL context */
+#define APP_HAVE_IMGUI	0x4	/* we have Dear ImGui initialized */
 
 /****************************************************************************
  * SETTING UP THE GL STATE                                                  *
@@ -122,7 +135,7 @@ debugCallback(GLenum source, GLenum type, GLuint id, GLenum severity,
 
 /* Initialize the global OpenGL state. This is called once after the context
  * is created. */
-static void initGLState(const AppConfig&cfg)
+static void initGLState(MainApp* app, const AppConfig& cfg)
 {
 	gpxutil::printGLInfo();
 	//listGLExtensions();
@@ -161,6 +174,31 @@ static void initGLState(const AppConfig&cfg)
 
 	glDepthFunc(GL_LESS);
 	glClearDepth(1.0f);
+
+	app->maxGlTextureSize = 4096;
+	GLint maxViewport[2] = { 4096, 4096};
+	GLint maxFB[2] = {4096, 4096};
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &app->maxGlTextureSize);
+	glGetIntegerv(GL_MAX_VIEWPORT_DIMS, maxViewport);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_WIDTH, &maxFB[0]);
+	glGetIntegerv(GL_MAX_FRAMEBUFFER_HEIGHT, &maxFB[1]);
+	gpxutil::info("GL limits: tex size: %d, viewport: %dx%d, framebuffer: %dx%d",
+			app->maxGlTextureSize, maxViewport[0], maxViewport[1], maxFB[0], maxFB[1]);
+	app->maxGlSize = app->maxGlTextureSize;
+	if (maxViewport[0] < app->maxGlSize) {
+		app->maxGlSize = maxViewport[0];
+	}
+	if (maxViewport[1] < app->maxGlSize) {
+		app->maxGlSize = maxViewport[1];
+	}
+	if (maxFB[0] < app->maxGlSize) {
+		app->maxGlSize = maxFB[0];
+	}
+	if (maxFB[1] < app->maxGlSize) {
+		app->maxGlSize = maxFB[1];
+	}
+	gpxutil::info("GL limits: tex size: %d, viewport: %dx%d, framebuffer: %dx%d, using limt: %d",
+			app->maxGlTextureSize, maxViewport[0], maxViewport[1], maxFB[0], maxFB[1], app->maxGlSize);
 }
 
 /****************************************************************************
@@ -185,14 +223,25 @@ static void callback_Resize(GLFWwindow *win, int w, int h)
  * will call this whenever a key is pressed. */
 static void callback_Keyboard(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
-	//MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
+	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
+	AppConfig *cfg = app->cfg;
+
 	if (action == GLFW_PRESS) {
 		switch(key) {
 			case GLFW_KEY_ESCAPE:
 				glfwSetWindowShouldClose(win, 1);
 				break;
 		}
+		if (!cfg->outputFrames) {
+			gpxvis::CAnimController::TAnimConfig& animCfg = app->animCtrl.GetAnimConfig();
+			switch(key) {
+				case GLFW_KEY_SPACE:
+					animCfg.paused = !animCfg.paused;
+					break;
+			}
+		}
 	}
+
 }
 
 /****************************************************************************
@@ -204,13 +253,14 @@ static void callback_Keyboard(GLFWwindow *win, int key, int scancode, int action
  * (via GLFW), initialize the GL function pointers via GLEW and initialize
  * the cube.
  * Returns true if successfull or false if an error occured. */
-bool initMainApp(MainApp *app, const AppConfig& cfg)
+bool initMainApp(MainApp *app, AppConfig& cfg)
 {
 	int w, h, x, y;
 	bool debugCtx=(cfg.debugOutputLevel > DEBUG_OUTPUT_DISABLED);
 
 	/* Initialize the app structure */
 	app->win=NULL;
+	app->cfg=&cfg;
 	app->flags=0;
 	app->avg_frametime=-1.0;
 	app->avg_fps=-1.0;
@@ -305,13 +355,34 @@ bool initMainApp(MainApp *app, const AppConfig& cfg)
 
 	app->flags |= APP_HAVE_GL;
 
+	if (cfg.withGUI) {
+#ifdef GPXVIS_WITH_IMGUI
+		/* initialize imgui */
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO();
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.IniFilename = NULL;
+		io.LogFilename = NULL;
+
+		// Setup Platform/Renderer backends
+		ImGui_ImplGlfw_InitForOpenGL(app->win, true);
+		ImGui_ImplOpenGL3_Init();
+		app->flags |= APP_HAVE_IMGUI;
+#else
+		gpxutil::warn("GUI requested but Dear ImGui not compiled in!");
+#endif
+	}
+
 	/* initialize the GL context */
-	initGLState(cfg);
+	initGLState(app, cfg);
 
 	// TODO ...
 	if (!app->animCtrl.Prepare(app->width,app->height)) {
 		gpxutil::warn("failed to initialize animation controller");
-		return false;
+		if (cfg.outputFrames) {
+			return false;
+		}
 	}
 
 	/* initialize the timer */
@@ -327,6 +398,14 @@ static void destroyMainApp(MainApp *app)
 		if (app->win) {
 			if (app->flags & APP_HAVE_GL) {
 				app->animCtrl.DropGL();
+				/* shut down imgui */
+#ifdef GPXVIS_WITH_IMGUI
+				if (app->flags & APP_HAVE_IMGUI) {
+					ImGui_ImplOpenGL3_Shutdown();
+					ImGui_ImplGlfw_Shutdown();
+					ImGui::DestroyContext();				
+				}
+#endif
 			}
 			glfwDestroyWindow(app->win);
 		}
@@ -338,49 +417,676 @@ static void destroyMainApp(MainApp *app)
  * DRAWING FUNCTION                                                         *
  ****************************************************************************/
 
-/* This draws the complete scene for a single eye */
-static void
-drawScene(MainApp *app)
+#ifdef GPXVIS_WITH_IMGUI
+static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 {
-	/* set the viewport (might have changed since last iteration) */
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-	//glViewport(0, 0, app->width, app->height);
+	ImGui::Begin("frameinfo", NULL,
+			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar |
+			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+			ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus);
+	if (animCtrl.GetTrackCount()) {
+		const gpx::CTrack& track = animCtrl.GetCurrentTrack();
+		ImGui::SetCursorPosY(2);
+		ImGui::Text("#%d/%d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
+		float ww = ImGui::GetWindowSize().x;
+		float tw = ImGui::CalcTextSize(track.GetInfo()).x;
+		ImGui::SetCursorPosX(ww - tw - 8.0f);
+		ImGui::SetCursorPosY(2);
+		ImGui::Text(track.GetInfo());
+	}
+	ImGui::End();
+}
 
-	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
-
-	const gpxvis::CVis& vis = app->animCtrl.GetVis();
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
-
-	float winAspect = (float)app->width / (float)app->height;
-	GLsizei w = vis.GetWidth();
-	GLsizei h = vis.GetHeight();
-	float imgAspect = (float)w/(float)h;
-	if (winAspect > imgAspect) {
-		float scale = (float)app->height / (float)h;
-		GLsizei newWidth = (GLsizei)(scale * w + 0.5f);
-		GLsizei offset = (app->width - newWidth) / 2;
-
-		glBlitFramebuffer(0,0,w,h, offset,0,offset+newWidth, app->height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-	} else {
-		float scale = (float)app->width / (float)w;
-		GLsizei newHeight = (GLsizei)(scale * h + 0.5f);
-		GLsizei offset = (app->height- newHeight) / 2;
-
-		glBlitFramebuffer(0,0,w,h, 0,offset,app->width, offset+newHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis, bool *isOpen)
+{
+	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 600, main_viewport->WorkPos.y+100), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(512, 0), ImGuiCond_FirstUseEver);
+	std::vector<gpx::CTrack>& tracks=animCtrl.GetTracks();
+	bool modified = false;
+	static size_t curIdx = 0;
+	if (!ImGui::Begin("Track Manager", isOpen)) {
+		ImGui::End();
+	}
+	ImGui::SeparatorText("Files:");
+	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN,  24 * ImGui::GetTextLineHeightWithSpacing()))) {
+		for (size_t i=0; i<tracks.size(); i++) {
+			char info[512];
+			mysnprintf(info, sizeof(info), "%d. %s [%s]", (int)(i+1), tracks[i].GetFilename(), tracks[i].GetInfo());
+			info[sizeof(info)-1]=0;
+			bool isSelected = (curIdx == i);
+			if (ImGui::Selectable(info, isSelected)) {
+				curIdx = i;
+			}
+			if (isSelected) {
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+		ImGui::EndListBox();
+	}
+	std::vector<gpx::CTrack>::iterator it=tracks.begin();
+	std::advance(it, curIdx);
+	if (ImGui::BeginTable("managerpertracksplit", 6)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Switch to", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 0) {
+				animCtrl.SwitchToTrack(curIdx);
+				// TODO: modifiedHistory = animCfg.clearAtCycle;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("To Front", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.insert(tracks.begin(), tmp);
+				curIdx = 0;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Move Up", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1 && curIdx > 0) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.insert(tracks.begin()+(curIdx-1), tmp);
+				curIdx--;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Move Down", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1 && curIdx + 1 < tracks.size()) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.insert(tracks.begin()+(curIdx+1), tmp);
+				curIdx++;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("To End", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.erase(it);
+				tracks.push_back(tmp);
+				curIdx = tracks.size()-1;
+				modified = true;
+			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 0) {
+				tracks.erase(it);
+				if (curIdx >= tracks.size()) {
+					curIdx = tracks.size();
+					if (curIdx > 0) {
+						curIdx--;
+					}
+				}
+				modified = true;
+			}
+		}
+		ImGui::EndTable();
+	}
+	if (ImGui::BeginTable("managerpertracksplit2", 2)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove all Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			tracks.clear();
+			curIdx = 0;
+			modified = true;
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove all Others", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (tracks.size() > 1) {
+				gpx::CTrack tmp = tracks[curIdx];
+				tracks.clear();
+				tracks.push_back(tmp);
+				curIdx = 0;
+				modified = true;
+			}
+		}
+		ImGui::EndTable();
 	}
 
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	ImGui::SeparatorText("Add files");
+	static char bufPath[256];
+	ImGui::InputText("filename", bufPath, sizeof(bufPath));
+	if (ImGui::BeginTable("manageraddsplit", 2)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Add File", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.AddTrack(bufPath);
+			modified = true;
+		}
+		ImGui::TableNextColumn();
+		ImGui::BeginDisabled();
+		if (ImGui::Button("Add Files", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+		}
+		ImGui::EndDisabled();
+		ImGui::EndTable();
+	}
+
+	if (modified) {
+		GLsizei w = vis.GetWidth();
+		GLsizei h = vis.GetHeight();
+		if (w < 1) {
+			w = (GLsizei)app->width;
+		}
+		if (h < 1) {
+			h = (GLsizei)app->height;
+		}
+		animCtrl.Prepare(w,h);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	}
+	ImGui::End();
+}
+
+static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
+{
+	bool modified = false;
+	bool modifiedHistory = false;
+	static bool first  = true;
+	static char outputFilename[256];
+	static bool showTrackManager = false;
+	if (first) {
+		strcpy(outputFilename, "gpxvis_");
+	}
+
+	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(512, 0), ImGuiCond_FirstUseEver);
+
+	ImGui::Begin("Main Controls");
+	size_t cnt = animCtrl.GetTrackCount();
+	bool disabled = (cnt < 1);
+
+	if (first && disabled) {
+		showTrackManager = true;
+	}
+
+	char buf[16];
+	if (cnt > 0) {
+		mysnprintf(buf,sizeof(buf), "#%d/%d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)cnt);
+	} else {
+		mysnprintf(buf,sizeof(buf), "(none)");
+	}
+	buf[sizeof(buf)-1]=0;
+
+
+
+	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
+	ImGui::BeginDisabled(disabled);
+	if (ImGui::BeginTable("tracksplit", 3)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5, 0.0f))) {
+			animCtrl.SwitchToTrack(0);
+			modifiedHistory = animCfg.clearAtCycle;
+		}
+		ImGui::SameLine();
+		float startPos = ImGui::GetCursorPosX();
+		ImGui::PushButtonRepeat(true);
+		if (ImGui::Button("<", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.ChangeTrack(-1);
+			modifiedHistory = true;
+		}
+		ImGui::PopButtonRepeat();
+		float bWidth = ImGui::GetCursorPosX() - startPos;
+
+		ImGui::TableNextColumn();
+		//ImGui::SetCursorPosX(0.5f*(ImGui::GetContentRegionAvail().x));
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX()+0.5*(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(buf).x));
+		ImGui::TextUnformatted(buf);
+		ImGui::TableNextColumn();
+		ImGui::PushButtonRepeat(true);
+		if (ImGui::Button(">", ImVec2(bWidth, 0.0f))) {
+			animCtrl.ChangeTrack(1);
+			modifiedHistory = true;
+		}
+		ImGui::PopButtonRepeat();
+		ImGui::SameLine();
+		if (ImGui::Button(">>|", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.SwitchToTrack(cnt);
+			modifiedHistory = true;
+		}
+		ImGui::EndTable();
+	}
+	ImGui::EndDisabled();
+	if (ImGui::BeginTable("controls", 3)) {
+		ImGui::BeginDisabled(disabled);
+		ImGui::TableNextColumn();
+		if (ImGui::Button(animCfg.paused?"Play":"Pause", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCfg.paused = !animCfg.paused;
+		}
+		ImGui::EndDisabled();
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Manage Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			showTrackManager = !showTrackManager;
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Quit", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			glfwSetWindowShouldClose(app->win, 1);
+		}
+		ImGui::EndTable();
+	}
+	static const gpx::CTrack defaultTrack;
+	static int timestepMode = 0;
+	static float fixedTimestep = 1000.0f/60.0f;
+	static float speedup = 1.0f;
+	const gpx::CTrack *curTrack = &defaultTrack;
+	if (cnt > 0) {
+		curTrack = &animCtrl.GetCurrentTrack();
+	}
+	ImGui::Text("File: %s", curTrack->GetFilename());
+	if (ImGui::BeginTable("infosplit", 3)) {
+		ImGui::TableNextColumn();
+		ImGui::Text("%s", curTrack->GetInfo());
+		ImGui::TableNextColumn();
+		ImGui::Text("Len: %.1f (%dpts)", curTrack->GetLength(), (int)curTrack->GetCount());
+		ImGui::TableNextColumn();
+		int thrs = (int)floor(curTrack->GetDuration() / 3600.0);
+		int tmin = (int)floor((curTrack->GetDuration() - 3600.0*thrs) / 60.0);
+		int tsec = (int)floor((curTrack->GetDuration() - 3600.0*thrs - 60.0*tmin));
+		ImGui::Text("Dur: %02d:%02d:%02d", thrs, tmin, tsec);
+		ImGui::EndTable();
+	}
+	if (ImGui::TreeNodeEx("Histroy Maniupulation", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
+		ImGui::SeparatorText("Manipulate History and Neighborhood");
+		if (ImGui::BeginTable("histcontrolsplit1", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("History:");
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Clear", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.ClearHistory();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Current", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.AddLineToBackground();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Up To", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetCurrentTrackIndex(), true, false);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetTrackCount(), true, false);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::EndTable();
+		}
+		if (ImGui::BeginTable("histcontrolsplit2", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Neighborhood:");
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Clear", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.ClearNeighborHood();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Current", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.AddLineToNeighborhood();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Up To", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetCurrentTrackIndex(), false, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetTrackCount(), false, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::EndTable();
+		}
+		if (ImGui::BeginTable("histcontrolsplit3", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Both:");
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Clear", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.Clear();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Current", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				vis.AddToBackground();
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Up To", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetCurrentTrackIndex(), true, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.RestoreHistoryUpTo(animCtrl.GetTrackCount(), true, true);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			}
+			ImGui::EndTable();
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
+		ImGui::SeparatorText("Animation Position");
+		float trackUpTo = animCtrl.GetCurrentTrackUpTo();
+		float trackTime = (float)animCtrl.GetCurrentTrackPos();
+		float trackPos = (float)curTrack->GetDistanceAt(trackUpTo);
+		if (trackUpTo < 0.0f) {
+			trackUpTo = (float)curTrack->GetCount();
+		}
+		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, curTrack->GetDuration()-1.0f, "%.1f")) {
+			animCtrl.SetCurrentTrackPos((double)trackTime);
+		}
+		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, curTrack->GetLength(), "%.3f")) {
+			trackUpTo = curTrack->GetPointByDistance((double)trackPos);
+			trackTime = curTrack->GetDurationAt(trackUpTo);
+			animCtrl.SetCurrentTrackPos((double)trackTime);
+		}
+		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount(), "%.2f")) {
+			trackTime = curTrack->GetDurationAt(trackUpTo);
+			animCtrl.SetCurrentTrackPos((double)trackTime);
+		}
+		float fadeRatio = animCtrl.GetCurrentFadeRatio();
+		if (ImGui::SliderFloat("fade-out", &fadeRatio, 0.0f, 1.0f, "%.2f")) {
+			animCtrl.SetCurrentFadeRatio(fadeRatio);
+		}
+
+		ImGui::SeparatorText("Animation Speed");
+		bool timestepModified = false;
+		ImGui::TextUnformatted("Timestep: ");
+		ImGui::SameLine();
+		if (ImGui::RadioButton("dynamic", &timestepMode, 0)) {
+			timestepModified = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::RadioButton("fixed", &timestepMode, 1)) {
+			timestepModified = true;
+		}
+		if (timestepMode) {
+			if (ImGui::SliderFloat("fixed timestep", &fixedTimestep, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic)) {
+				timestepModified = true;
+			}
+		} else {
+			float value = (float)app->timeDelta * 1000.0f;
+			ImGui::SliderFloat("dynamic timestep", &value, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic);
+		}
+
+		float trackSpeed = animCfg.trackSpeed/3600.0f;
+		if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
+			animCfg.trackSpeed = trackSpeed * 3600.0;
+		}
+		float fadeout = animCfg.fadeoutTime;
+		if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+			animCfg.fadeoutTime = fadeout;
+		}
+		if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
+			timestepModified = true;
+		}
+		if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCfg.ResetSpeeds();
+			speedup = 1.0f;
+			timestepMode = 0;
+			fixedTimestep = 1000.0f/60.0f;
+			timestepModified = true;
+		}
+		if (timestepModified) {
+			if (timestepMode == 1) {
+				animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+			} else {
+				animCtrl.SetAnimSpeed(-speedup);
+			}
+		}
+		ImGui::SeparatorText("Animation Options");
+		if (ImGui::BeginTable("animoptionssplit", 2)) {
+			ImGui::TableNextColumn();
+			ImGui::Checkbox("Pause at end", &animCfg.pauseAtCycle);
+			ImGui::TableNextColumn();
+			ImGui::Checkbox("Clear at end", &animCfg.clearAtCycle);
+			ImGui::EndTable();
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
+	}
+
+	if (ImGui::TreeNodeEx("Visualization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
+		ImGui::SeparatorText("Track Colors");
+		gpxvis::CVis::TConfig& cfg=vis.GetConfig();
+		if (ImGui::ColorEdit3("track history", cfg.colorBase)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		if (ImGui::ColorEdit3("gradient new", &cfg.colorGradient[0][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("gradient mid", &cfg.colorGradient[1][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("gradient old", &cfg.colorGradient[2][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("current point", &cfg.colorGradient[3][0])) {
+			modified = true;
+		}
+		if (ImGui::ColorEdit3("background", cfg.colorBackground)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		if (ImGui::Button("Reset Colors", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			cfg.ResetColors();
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::SeparatorText("Line Parameters");
+		if (ImGui::SliderFloat("track width", &cfg.trackWidth, 0.0f, 32.0f)) {
+			modified = true;
+		}
+		if (ImGui::SliderFloat("point size", &cfg.trackPointWidth, 0.0f, 32.0f)) {
+			modified = true;
+		}
+		if (ImGui::SliderFloat("neighborhood width", &cfg.neighborhoodWidth, 0.0f, 32.0f)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		if (ImGui::Button("Reset Line Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			cfg.ResetWidths();
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNodeEx("Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+		ImGui::BeginDisabled(disabled);
+		static int renderSize[2] = {-1, -1};
+		int maxSize = 8192;
+		if (app->maxGlSize < maxSize) {
+			maxSize = app->maxGlSize;
+		}
+		ImGui::SeparatorText("Render Settings");
+		if (ImGui::BeginTable("renderinfosplit", 2)) {
+			ImGui::TableNextColumn();
+			ImGui::Text("Resolution: %dx%d", (int)vis.GetWidth(), (int)vis.GetHeight());
+			ImGui::TableNextColumn();
+			ImGui::Text("data aspect ratio: %.3f", vis.GetDataAspect());
+			ImGui::EndTable();
+		}
+		if (renderSize[0] < 0) {
+			renderSize[0] = (int)vis.GetWidth();
+		}
+		if (renderSize[1] < 0) {
+			renderSize[1] = (int)vis.GetHeight();
+		}
+		if (ImGui::SliderInt("render width", &renderSize[0], 256, maxSize, "%dpx")) {
+			renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[0], 8);
+		}
+		if (ImGui::SliderInt("render height", &renderSize[1], 256, maxSize, "%dpx")) {
+			renderSize[1] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[1], 8);
+		}
+		if (ImGui::BeginTable("renderbuttonssplit", 2)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Apply", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.Prepare((GLsizei)renderSize[0], (GLsizei)renderSize[1]);
+				modifiedHistory = true;
+				modified = true;
+				renderSize[0] = -1;
+				renderSize[1] = -1;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Cancel", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				renderSize[0] = -1;
+				renderSize[1] = -1;
+			}
+			ImGui::EndTable();
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
+	}
+	if (ImGui::TreeNodeEx("Output")) {
+		ImGui::BeginDisabled(disabled);
+		static bool forceFixedTimestep = true;
+		static bool withLabel = false;
+		static bool exitAfter = false;
+		ImGui::SeparatorText("Output to Files");
+		ImGui::InputText("filename prefix", outputFilename, sizeof(outputFilename));
+		ImGui::Checkbox("force fixed timestep", &forceFixedTimestep);
+		ImGui::Checkbox("render text labels into images", &withLabel);
+		ImGui::Checkbox("exit application when finished", &exitAfter);
+
+		if (ImGui::Button("Render Animation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			vis.Clear();
+			animCtrl.SwitchToTrack(0);
+			if (forceFixedTimestep) {
+				animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+			}
+			animCtrl.Play();
+			cfg.outputFrames = outputFilename;
+			cfg.exitAfterOutputFrames = exitAfter;
+			cfg.withGUI = withLabel;
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
+	}
+	ImGui::End();
+
+	if (modified) {
+		vis.UpdateConfig();
+	}
+	if (modifiedHistory) {
+		size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
+		animCtrl.RestoreHistoryUpTo(curTrackIdx);
+	}
+	if (modified) {
+		animCtrl.RefreshCurrentTrack();
+	}
+
+	if (showTrackManager) {
+		drawTrackManager(app, animCtrl, vis, &showTrackManager);
+	}
+	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+	first  = false;
+}
+#endif
+
+/* This draws the complete scene for a single eye */
+static void
+drawScene(MainApp *app, AppConfig& cfg)
+{
+	gpxvis::CAnimController& animCtrl = app->animCtrl;
+	gpxvis::CVis& vis = animCtrl.GetVis();
+
+	GLsizei w = vis.GetWidth();
+	GLsizei h = vis.GetHeight();
+
+#ifdef GPXVIS_WITH_IMGUI
+	if ((app->flags & APP_HAVE_IMGUI ) && cfg.outputFrames && cfg.withGUI && animCtrl.IsPrepared()) {
+		float scale = 2.0f;
+		// Render some stuff to the image itself
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vis.GetImageFBO());
+
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2((float)vis.GetWidth()/scale, (float)vis.GetHeight()/scale);
+		io.DisplayFramebufferScale = ImVec2(scale, scale);
+		io.DeltaTime = 1.0e-10f;
+		//ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+		ImGui::SetNextWindowPos(ImVec2(0,0));
+		ImGui::SetNextWindowSize(ImVec2(vis.GetWidth()/scale, vis.GetHeight()/scale));
+
+		drawTrackStatus(animCtrl);
+
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
+#endif
+
+	/* set the viewport (might have changed since last iteration) */
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+	glViewport(0, 0, app->width, app->height);
+
+	const gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
+	glClearColor(visCfg.colorBackground[0], visCfg.colorBackground[1], visCfg.colorBackground[2], visCfg.colorBackground[3]);
+	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
+
+	GLsizei widthOffset=0;
+	GLsizei heightOffset=0;
+	GLsizei newWidth = app->width;
+	GLsizei newHeight = app->height;
+
+	if (animCtrl.IsPrepared()) {
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
+
+		float winAspect = (float)app->width / (float)app->height;
+		float imgAspect = (float)w/(float)h;
+		if (winAspect > imgAspect) {
+			float scale = (float)app->height / (float)h;
+			newWidth = (GLsizei)(scale * w + 0.5f);
+			widthOffset = (app->width - newWidth);
+		} else {
+			float scale = (float)app->width / (float)w;
+			newHeight = (GLsizei)(scale * h + 0.5f);
+			heightOffset = (app->height- newHeight) / 2;
+		}
+		glBlitFramebuffer(0,0,w,h, widthOffset,heightOffset, widthOffset+newWidth, heightOffset+newHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	}
+
+#ifdef GPXVIS_WITH_IMGUI
+	if (!cfg.outputFrames && (app->flags & APP_HAVE_IMGUI)) {
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+		/*
+		ImGui::SetNextWindowPos(ImVec2(widthOffset, heightOffset));
+		ImGui::SetNextWindowSize(ImVec2(newWidth, newHeight));
+		drawTrackStatus(animCtrl);
+		*/
+		drawMainWindow(app, cfg, animCtrl, vis);
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+	}
+#endif
 }
 
 
 /* The main drawing function. This is responsible for drawing the next frame,
  * it is called in a loop as long as the application runs */
 static bool
-displayFunc(MainApp *app, const AppConfig& cfg)
+displayFunc(MainApp *app, AppConfig& cfg)
 {
 	// Render an animation frame
 	bool cycleFinished = app->animCtrl.UpdateStep(app->timeDelta);
+	drawScene(app, cfg);
+
 	if (cfg.outputFrames) {
 		gpximg::CImg img;
 		if (app->animCtrl.GetVis().GetImage(img)) {
@@ -389,11 +1095,12 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 			img.WriteTGA(buf);
 		}
 		if (cycleFinished) {
-			return false;
+			cfg.outputFrames = NULL;
+			if (cfg.exitAfterOutputFrames) {
+				return false;
+			}
 		}
 	}
-
-	drawScene(app);
 
 	/* finished with drawing, swap FRONT and BACK buffers to show what we
 	 * have rendered */
@@ -412,7 +1119,7 @@ displayFunc(MainApp *app, const AppConfig& cfg)
 /* The main loop of the application. This will call the display function
  *  until the application is closed. This function also keeps timing
  *  statistics. */
-static void mainLoop(MainApp *app, const AppConfig& cfg)
+static void mainLoop(MainApp *app, AppConfig& cfg)
 {
 	unsigned int frame=0;
 	double start_time=glfwGetTime();
@@ -472,6 +1179,10 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 			cfg.decorated = false;
 		} else if (!strcmp(argv[i], "--gl-debug-sync")) {
 			cfg.debugOutputSynchronous = true;
+		} else if (!strcmp(argv[i], "--no-gui")) {
+			cfg.withGUI = false;
+		} else if (!strcmp(argv[i], "--with-gui")) {
+			cfg.withGUI = true;
 		} else {
 			bool unhandled = false;
 			if (i + 1 < argc) {
@@ -489,6 +1200,7 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					cfg.debugOutputLevel = (DebugOutputLevel)strtoul(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--output-frames")) {
 					cfg.outputFrames = argv[++i];
+					cfg.withGUI = false;
 				} else if (!strcmp(argv[i], "--output-fps")) {
 					double fps = strtod(argv[++i], NULL);
 					app.animCtrl.SetAnimSpeed(1.0/fps);

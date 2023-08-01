@@ -419,4 +419,18 @@ double CAABB::GetAspect() const
 	return 1.0;
 }
 
+/****************************************************************************
+ * MISC UTILITIES                                                           *
+ ****************************************************************************/
+
+/* round GLsizei to next multiple of base */
+GLsizei roundNextMultiple(GLsizei value, GLsizei base)
+{
+	GLsizei rem = value % base;
+	if (rem) {
+		value += base - rem;
+	}
+	return value;
+}
+
 } // namespace gpxutil
