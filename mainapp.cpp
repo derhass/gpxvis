@@ -820,7 +820,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
-		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount(), "%.2f")) {
+		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount()-1.0f, "%.2f")) {
 			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}

@@ -129,25 +129,25 @@ bool CTrack::Load(const char *filename)
 			aabb.Add(pt.x,pt.y,pt.h);
 
 			size_t cnt = points.size();
+			pt.len = 0.0;
+			pt.duration = 0.0;
+			pt.posOnTrack = 0.0;
+			pt.timeOnTrack = 0.0;
 			if (cnt > 0) {
 				double dx = pt.x - points[cnt-1].x;
 				double dy = pt.y - points[cnt-1].y;
 				double len = sqrt(dx*dx + dy*dy);
-				pt.len = len;
-				pt.posOnTrack = totalLen;
+				points[cnt-1].len = len;
 				totalLen += len;
+				pt.posOnTrack = totalLen;
 				if (points[cnt-1].timestamp > pt.timestamp) {
 					gpxutil::warn("gpx file '%s': time warp deteced at point %llu", filename, (unsigned long long)cnt);
 					pt.timestamp = points[cnt-1].timestamp;
 				}
-				pt.duration = (double)difftime(pt.timestamp, points[cnt-1].timestamp);
+				double dur = (double)difftime(pt.timestamp, points[cnt-1].timestamp);
+				points[cnt-1].duration = dur;
+				totalDuration += dur;
 				pt.timeOnTrack = totalDuration;
-				totalDuration += pt.duration;
-			} else {
-				pt.len = 0.0;
-				pt.duration = 0.0;
-				pt.posOnTrack = 0.0;
-				pt.timeOnTrack = 0.0;
 			}
 
 			points.push_back(pt);
