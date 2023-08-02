@@ -266,6 +266,9 @@ extern GLuint shaderCreateFromFileAndCompile(GLenum type, const char *filename)
 
 	GLuint shader=shaderCreateAndCompile(type, source);
 	free(source);
+	if (!shader) {
+		gpxutil::warn("Failed to compile shader '%s'", filename);
+	}
 	return shader;
 }
 
@@ -319,7 +322,10 @@ extern GLuint programCreateFromFiles(const char *vs, const char *fs)
 {
 	GLuint id_vs=shaderCreateFromFileAndCompile(GL_VERTEX_SHADER, vs);
 	GLuint id_fs=shaderCreateFromFileAndCompile(GL_FRAGMENT_SHADER, fs);
-	GLuint program=programCreate(id_vs,id_fs);
+	GLuint program = 0;
+	if (id_vs && id_fs) {
+		program=programCreate(id_vs,id_fs);
+	}
 	/* Delete the shader objects. Since they are still in use in the
 	 * program object, OpenGL will not destroy them internally until
 	 * the program object is destroyed. The caller of this function
