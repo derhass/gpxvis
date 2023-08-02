@@ -44,12 +44,10 @@ void main()
 	vec2 t;
 	if (len > 0.0000001) {
 		t = normalize(delta);
-		delta = vec2(0,0);
 	} else {
 		t = vec2(1,0);
 	}
 	vec2 n = vec2(-t.y, t.x);
-	float width = 0.1;
 
 	ivec2 selector = pointSelector[segmentIdx];
 	vec2 vertex = vertices[vertexIdx];

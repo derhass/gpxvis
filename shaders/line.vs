@@ -41,7 +41,6 @@ void main()
 		t = vec2(1,0);
 	}
 	vec2 n = vec2(-t.y, t.x);
-	float width = 0.1;
 
 	ivec2 selector = pointSelector[segmentIdx];
 	vec2 vertex = vertices[vertexIdx];
