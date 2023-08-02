@@ -120,6 +120,13 @@ class CVis {
 
 class CAnimController {
 	public:
+		typedef enum : int {
+			BACKGROUND_NONE,
+			BACKGROUND_UPTO,
+			BACKGROUND_CURRENT,
+			BACKGROUND_ALL
+		} TBackgroundMode;
+
 		struct TAnimConfig {
 			double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
 			double        trackSpeed;        // 1.0 is realtime
@@ -127,11 +134,14 @@ class CAnimController {
 			bool          paused;
 			bool          pauseAtCycle;
 			bool          clearAtCycle;
+			TBackgroundMode historyMode;
+			TBackgroundMode neighborhoodMode;
 
 			TAnimConfig();
 			void Reset();
 			void ResetSpeeds();
 			void ResetAtCycle();
+			void ResetModes();
 		};
 
 		CAnimController();
@@ -170,6 +180,7 @@ class CAnimController {
 		void SwitchToTrack(size_t idx);
 		std::vector<gpx::CTrack>& GetTracks() {return tracks;} // call Prepare after you modified these...
 
+		void RestoreHistory(bool history=true, bool neighborhood=true);
 		void RestoreHistoryUpTo(size_t idx, bool history=true, bool neighborhood=true);
 		void ResetAnimation();
 

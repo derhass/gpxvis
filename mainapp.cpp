@@ -641,8 +641,8 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (ImGui::BeginTable("tracksplit", 3)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5, 0.0f))) {
-			animCtrl.SwitchToTrack(0);
-			modifiedHistory = animCfg.clearAtCycle;
+			animCtrl.ResetAnimation();
+			//modifiedHistory = true;
 		}
 		ImGui::SameLine();
 		float startPos = ImGui::GetCursorPosX();
@@ -882,6 +882,55 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			ImGui::Checkbox("Clear at end", &animCfg.clearAtCycle);
 			ImGui::EndTable();
 		}
+		if (ImGui::BeginTable("animoptionshistorysplit", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("History:");
+			ImGui::TableNextColumn();
+			int bgMode =(int)animCfg.historyMode;
+			int nhMode =(int)animCfg.neighborhoodMode;
+			if (ImGui::RadioButton("none##1", &bgMode, gpxvis::CAnimController::BACKGROUND_NONE)) {
+				animCfg.historyMode = (gpxvis::CAnimController::TBackgroundMode)bgMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("current##1", &bgMode, gpxvis::CAnimController::BACKGROUND_CURRENT)) {
+				animCfg.historyMode = (gpxvis::CAnimController::TBackgroundMode)bgMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("up-to##1", &bgMode, gpxvis::CAnimController::BACKGROUND_UPTO)) {
+				animCfg.historyMode = (gpxvis::CAnimController::TBackgroundMode)bgMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("all##1", &bgMode, gpxvis::CAnimController::BACKGROUND_ALL)) {
+				animCfg.historyMode = (gpxvis::CAnimController::TBackgroundMode)bgMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Neighborh.:");
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("none##2", &nhMode, gpxvis::CAnimController::BACKGROUND_NONE)) {
+				animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)nhMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("current##2", &nhMode, gpxvis::CAnimController::BACKGROUND_CURRENT)) {
+				animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)nhMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("up-to##2", &nhMode, gpxvis::CAnimController::BACKGROUND_UPTO)) {
+				animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)nhMode;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("all##2", &nhMode, gpxvis::CAnimController::BACKGROUND_ALL)) {
+				animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)nhMode;
+				modifiedHistory = true;
+			}
+			ImGui::EndTable();
+		}
 		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
@@ -934,7 +983,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
-	if (ImGui::TreeNodeEx("Rendering", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (ImGui::TreeNodeEx("Rendering", 0)) {
 		ImGui::BeginDisabled(disabled);
 		static int renderSize[2] = {-1, -1};
 		int maxSize = 8192;
@@ -1020,7 +1069,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	}
 	if (modifiedHistory) {
 		size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
-		animCtrl.RestoreHistoryUpTo(curTrackIdx);
+		animCtrl.RestoreHistory(curTrackIdx);
 	}
 	if (modified) {
 		animCtrl.RefreshCurrentTrack();

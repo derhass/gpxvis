@@ -517,6 +517,7 @@ void CAnimController::TAnimConfig::Reset()
 {
 	ResetSpeeds();
 	ResetAtCycle();
+	ResetModes();
 	paused = false;
 }
 
@@ -531,6 +532,12 @@ void CAnimController::TAnimConfig::ResetAtCycle()
 {
 	pauseAtCycle = true;
 	clearAtCycle = false;
+}
+
+void CAnimController::TAnimConfig::ResetModes()
+{
+	historyMode = BACKGROUND_UPTO;
+	neighborhoodMode = BACKGROUND_UPTO;
 }
 
 CAnimController::CAnimController() :
@@ -693,6 +700,91 @@ void CAnimController::RestoreHistoryUpTo(size_t idx, bool history, bool neighbor
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
+void CAnimController::RestoreHistory(bool history, bool neighborhood)
+{
+	size_t cnt = tracks.size();
+	size_t idx = curTrack;
+	vis.Clear();
+
+	if (cnt > 0) {
+		if (idx > cnt) {
+			idx = cnt;
+		}
+		if (history && neighborhood && (animCfg.historyMode == animCfg.neighborhoodMode) ) {
+			switch (animCfg.historyMode) {
+				case BACKGROUND_UPTO:
+					for (size_t i=0; i<idx; i++) {
+						UpdateTrack(i);
+						vis.AddToBackground();
+					}
+					break;
+				case BACKGROUND_ALL:
+					for (size_t i=0; i<tracks.size(); i++) {
+						UpdateTrack(i);
+						vis.AddToBackground();
+					}
+					break;
+				case BACKGROUND_CURRENT:
+					UpdateTrack(curTrack);
+					vis.AddToBackground();
+					break;
+				case BACKGROUND_NONE:
+				default:
+					(void)0;
+			}
+		} else {
+		       	if (history) {
+				switch (animCfg.historyMode) {
+					case BACKGROUND_UPTO:
+						for (size_t i=0; i<idx; i++) {
+							UpdateTrack(i);
+							vis.AddLineToBackground();
+						}
+						break;
+					case BACKGROUND_ALL:
+						for (size_t i=0; i<tracks.size(); i++) {
+							UpdateTrack(i);
+							vis.AddLineToBackground();
+						}
+						break;
+					case BACKGROUND_CURRENT:
+						UpdateTrack(curTrack);
+						vis.AddLineToBackground();
+						break;
+					case BACKGROUND_NONE:
+					default:
+						(void)0;
+				}
+			}
+			if (neighborhood) {
+				switch (animCfg.neighborhoodMode) {
+					case BACKGROUND_UPTO:
+						for (size_t i=0; i<idx; i++) {
+							UpdateTrack(i);
+							vis.AddLineToNeighborhood();
+						}
+						break;
+					case BACKGROUND_ALL:
+						for (size_t i=0; i<tracks.size(); i++) {
+							UpdateTrack(i);
+							vis.AddLineToNeighborhood();
+						}
+						break;
+					case BACKGROUND_CURRENT:
+						UpdateTrack(curTrack);
+						vis.AddLineToNeighborhood();
+						break;
+					case BACKGROUND_NONE:
+					default:
+						(void)0;
+				}
+			}
+		}
+		UpdateTrack(curTrack);
+	}
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
+
 void CAnimController::DropGL()
 {
 	vis.DropGL();
@@ -726,6 +818,15 @@ bool CAnimController::UpdateStep(double timeDelta)
 				animationTime = 0.0;
 				curFrame = 0;
 				newCycle = false;
+				RestoreHistory();
+			}
+			if (animCfg.historyMode == BACKGROUND_CURRENT) {
+				vis.ClearHistory();
+				vis.AddLineToBackground();
+			}
+			if (animCfg.neighborhoodMode == BACKGROUND_CURRENT) {
+				vis.ClearNeighborHood();
+				vis.AddLineToNeighborhood();
 			}
 			vis.DrawTrack(0.0f);
 			vis.MixTrackAndBackground(1.0f);
@@ -741,7 +842,9 @@ bool CAnimController::UpdateStep(double timeDelta)
 			break;
 		case PHASE_FADEOUT_INIT:
 			vis.DrawTrack(-1.0f);
-			vis.AddLineToBackground();
+			if (animCfg.historyMode == BACKGROUND_UPTO) {
+				vis.AddLineToBackground();
+			}
 			vis.MixTrackAndBackground(1.0f);
 			nextPhase = PHASE_FADEOUT;
 			curFadeTime = curFadeRatio * animCfg.fadeoutTime;
@@ -751,7 +854,9 @@ bool CAnimController::UpdateStep(double timeDelta)
 			vis.MixTrackAndBackground(GetFadeoutAnimation(nextPhase));
 			break;
 		case PHASE_SWITCH_TRACK:
-			vis.AddLineToNeighborhood();
+			if (animCfg.neighborhoodMode == BACKGROUND_UPTO) {
+				vis.AddLineToNeighborhood();
+			}
 			if (++curTrack >= tracks.size()) {
 				cycleFinished = true;
 				newCycle = true;
