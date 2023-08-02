@@ -56,7 +56,7 @@ void main()
 
 	int side = (vertex.x < 0.0) ? 0 : 1;
 	vec2 basePoint = line[selector[side]];
-	if (segmentIdx == selector && side == (1-selector)) {
+	if (segmentIdx == selector[0] && side == (1-selector[0])) {
 		vertex.x = 0.0;
 	} else {
 		vertex.x *= float(1 - selector.y + selector.x);
