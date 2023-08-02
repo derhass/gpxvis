@@ -232,7 +232,7 @@ bool CVis::InitializeUBO(int i)
 				tscale[0] = 1.0f;
 				tscale[1] = dataAspect;
 			} else {
-				tscale[0] = 1.0/dataAspect;
+				tscale[0] = 1.0f/dataAspect;
 				tscale[1] = 1.0f;
 			}
 			if (screenAspect > dataAspect) {
@@ -375,7 +375,7 @@ void CVis::DrawTrack(float upTo)
 
 		glBindTextures(0, 1, &tex[FB_NEIGHBORHOOD]);
 		glUniform1f(1, upTo);
-		glDrawArrays(GL_TRIANGLES, 0, 18*cnt);
+		glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(18*cnt));
 		glDisable(GL_DEPTH_TEST);
 
 		if (drawPoint) {
@@ -401,7 +401,7 @@ void CVis::DrawSimple()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
-	glDrawArrays(GL_LINE_STRIP, 0, vertexCount);
+	glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)vertexCount);
 }
 
 void CVis::DrawNeighborhood()
@@ -416,7 +416,7 @@ void CVis::DrawNeighborhood()
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
-	glDrawArrays(GL_TRIANGLES, 0, 18*(vertexCount-1));
+	glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(18*(vertexCount-1)));
 }
 
 void CVis::AddToBackground()
@@ -495,7 +495,7 @@ bool CVis::GetImage(gpximg::CImg& img) const
 	if (!img.Allocate((int)width,(int)height,3)) {
 		return false;
 	}
-	glGetTextureImage(tex[FB_FINAL],0,GL_RGB,GL_UNSIGNED_BYTE, img.GetSize(), img.GetData());
+	glGetTextureImage(tex[FB_FINAL],0,GL_RGB,GL_UNSIGNED_BYTE, (GLsizei)img.GetSize(), img.GetData());
 	return true;
 }
 

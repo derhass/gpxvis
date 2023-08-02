@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 namespace gpx {
@@ -50,8 +51,8 @@ static time_t getTime(const char *str)
 {
 	time_t val = (time_t)0;
 	if (str) {
-		struct tm ts;
-		ts.tm_year = getInt(str, str);
+		struct tm ts = { 0 };
+		ts.tm_year = getInt(str, str) - 1900;
 		ts.tm_mon = getInt(str, str)-1;
 		ts.tm_mday = getInt(str, str);
 		ts.tm_hour = getInt(str, str);
@@ -94,7 +95,7 @@ bool CTrack::Load(const char *filename)
 		gpxutil::warn("gpx file '%s': out of memory when importing", filename);
 		return false;
 	}
-	fseeko(file, 0, SEEK_SET);
+	fseek(file, 0, SEEK_SET);
 	source[fread(source, 1, size, file)] = 0;
 	fclose(file);
 
@@ -109,7 +110,7 @@ bool CTrack::Load(const char *filename)
 		if (!end) {
 			break;
 		}
-		pos = end - source;
+		pos = (long)(end - source);
 		source[pos++] = 0;
 		const char *lat=strstr(start, "lat=");
 		const char *lon=strstr(start, "lon=");
@@ -164,7 +165,7 @@ bool CTrack::Load(const char *filename)
 		struct tm *tm;
 		char buf[64];
 		tm = localtime(&points[0].timestamp);
-		mysnprintf(buf, sizeof(buf), "%04d-%02d-%02d", tm->tm_year, tm->tm_mon+1, tm->tm_mday);
+		mysnprintf(buf, sizeof(buf), "%04d-%02d-%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
 		buf[sizeof(buf)-1] = 0;
 		info = buf;
 	}
@@ -185,10 +186,10 @@ void CTrack::Reset()
 void CTrack::GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const
 {
 	for (size_t i=0; i<points.size(); i++) {
-		data.push_back((points[i].x - origin[0])*scale[0]);
-		data.push_back((points[i].y - origin[1])*scale[1]);
+		data.push_back((float)((points[i].x - origin[0])*scale[0]));
+		data.push_back((float)((points[i].y - origin[1])*scale[1]));
 		if (withZ) {
-			data.push_back((points[i].h - origin[2])*scale[2]);
+			data.push_back((float)((points[i].h - origin[2])*scale[2]));
 		}
 	}
 }

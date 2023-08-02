@@ -278,7 +278,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	/* request a OpenGL 4.6 core profile context */
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, (debugCtx)?GL_TRUE:GL_FALSE);
@@ -313,7 +313,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	gpxutil::info("creating window and OpenGL context");
 	app->win=glfwCreateWindow(w, h, APP_TITLE, monitor, NULL);
 	if (!app->win) {
-		gpxutil::warn("failed to get window with OpenGL 4.6 core context");
+		gpxutil::warn("failed to get window with OpenGL 4.5 core context");
 		return false;
 	}
 
@@ -348,8 +348,8 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 		return false;
 	}
 
-	if (!GLAD_GL_VERSION_4_6) {
-		gpxutil::warn("failed to load at least GL 4.6 functions via GLAD");
+	if (!GLAD_GL_VERSION_4_5) {
+		gpxutil::warn("failed to load at least GL 4.5 functions via GLAD");
 		return false;
 	}
 
@@ -640,7 +640,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	ImGui::BeginDisabled(disabled);
 	if (ImGui::BeginTable("tracksplit", 3)) {
 		ImGui::TableNextColumn();
-		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5, 0.0f))) {
+		if (ImGui::Button("|<<", ImVec2(ImGui::GetContentRegionAvail().x * 0.5f, 0.0f))) {
 			animCtrl.ResetAnimation();
 			//modifiedHistory = true;
 		}
@@ -656,7 +656,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 
 		ImGui::TableNextColumn();
 		//ImGui::SetCursorPosX(0.5f*(ImGui::GetContentRegionAvail().x));
-		ImGui::SetCursorPosX(ImGui::GetCursorPosX()+0.5*(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(buf).x));
+		ImGui::SetCursorPosX(ImGui::GetCursorPosX()+0.5f*(ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(buf).x));
 		ImGui::TextUnformatted(buf);
 		ImGui::TableNextColumn();
 		ImGui::PushButtonRepeat(true);
@@ -812,16 +812,16 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (trackUpTo < 0.0f) {
 			trackUpTo = (float)curTrack->GetCount();
 		}
-		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, curTrack->GetDuration()-1.0f, "%.1f")) {
+		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, (float)curTrack->GetDuration()-1.0f, "%.1f")) {
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
-		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, curTrack->GetLength(), "%.3f")) {
+		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, (float)curTrack->GetLength(), "%.3f")) {
 			trackUpTo = curTrack->GetPointByDistance((double)trackPos);
-			trackTime = curTrack->GetDurationAt(trackUpTo);
+			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
 		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount(), "%.2f")) {
-			trackTime = curTrack->GetDurationAt(trackUpTo);
+			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
 		float fadeRatio = animCtrl.GetCurrentFadeRatio();
@@ -849,11 +849,11 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			ImGui::SliderFloat("dynamic timestep", &value, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic);
 		}
 
-		float trackSpeed = animCfg.trackSpeed/3600.0f;
+		float trackSpeed = (float)animCfg.trackSpeed/3600.0f;
 		if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
 			animCfg.trackSpeed = trackSpeed * 3600.0;
 		}
-		float fadeout = animCfg.fadeoutTime;
+		float fadeout = (float)animCfg.fadeoutTime;
 		if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
 			animCfg.fadeoutTime = fadeout;
 		}
