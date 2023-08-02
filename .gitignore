@@ -1,6 +1,10 @@
 dep/
+build/
+glfw/
 *.o
 *~
 *.swp
+*.vcxproj.user
 gpxvis
+
 
