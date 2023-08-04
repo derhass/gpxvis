@@ -953,47 +953,86 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	}
 
 	if (ImGui::TreeNodeEx("Visualization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+		static int historyLineMode = -1;
 		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Track Colors");
-		gpxvis::CVis::TConfig& cfg=vis.GetConfig();
-		if (ImGui::ColorEdit3("track history", cfg.colorBase)) {
+		gpxvis::CVis::TConfig& visCfg=vis.GetConfig();
+		if (historyLineMode < 0) {
+			if (visCfg.historyAdditive) {
+				historyLineMode = 1;
+			} else if (visCfg.historyWideLine) {
+				historyLineMode = 2;
+			} else {
+				historyLineMode = 0;
+			}
+		}
+		if (ImGui::ColorEdit3("track history", visCfg.colorBase)) {
 			modified = true;
 			modifiedHistory = true;
 		}
-		if (ImGui::ColorEdit3("gradient new", &cfg.colorGradient[0][0])) {
+		if (ImGui::ColorEdit3("gradient new", &visCfg.colorGradient[0][0])) {
 			modified = true;
 		}
-		if (ImGui::ColorEdit3("gradient mid", &cfg.colorGradient[1][0])) {
+		if (ImGui::ColorEdit3("gradient mid", &visCfg.colorGradient[1][0])) {
 			modified = true;
 		}
-		if (ImGui::ColorEdit3("gradient old", &cfg.colorGradient[2][0])) {
+		if (ImGui::ColorEdit3("gradient old", &visCfg.colorGradient[2][0])) {
 			modified = true;
 		}
-		if (ImGui::ColorEdit3("current point", &cfg.colorGradient[3][0])) {
+		if (ImGui::ColorEdit3("current point", &visCfg.colorGradient[3][0])) {
 			modified = true;
 		}
-		if (ImGui::ColorEdit3("background", cfg.colorBackground)) {
+		if (ImGui::ColorEdit3("background", visCfg.colorBackground)) {
 			modified = true;
 			modifiedHistory = true;
 		}
 		if (ImGui::Button("Reset Colors", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			cfg.ResetColors();
+			visCfg.ResetColors();
 			modified = true;
 			modifiedHistory = true;
 		}
 		ImGui::SeparatorText("Line Parameters");
-		if (ImGui::SliderFloat("track width", &cfg.trackWidth, 0.0f, 32.0f)) {
+		if (ImGui::SliderFloat("track width", &visCfg.trackWidth, 0.0f, 32.0f)) {
 			modified = true;
 		}
-		if (ImGui::SliderFloat("point size", &cfg.trackPointWidth, 0.0f, 32.0f)) {
+		if (ImGui::SliderFloat("point size", &visCfg.trackPointWidth, 0.0f, 32.0f)) {
 			modified = true;
 		}
-		if (ImGui::SliderFloat("neighborhood width", &cfg.neighborhoodWidth, 0.0f, 32.0f)) {
+		if (ImGui::SliderFloat("neighborhood width", &visCfg.neighborhoodWidth, 0.0f, 32.0f)) {
 			modified = true;
 			modifiedHistory = true;
 		}
+		ImGui::TextUnformatted("History Line mode: ");
+		ImGui::SameLine();
+		if (ImGui::RadioButton("simple", &historyLineMode, 0)) {
+			visCfg.historyWideLine = false;
+			visCfg.historyAdditive = false;
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::RadioButton("additive", &historyLineMode, 1)) {
+			visCfg.historyWideLine = false;
+			visCfg.historyAdditive = true;
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::RadioButton("wide", &historyLineMode, 2)) {
+			visCfg.historyWideLine = true;
+			visCfg.historyAdditive = false;
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::BeginDisabled(!visCfg.historyWideLine);
+		if (ImGui::SliderFloat("history width", &visCfg.historyWidth, 0.0f, 32.0f)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::EndDisabled();
 		if (ImGui::Button("Reset Line Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			cfg.ResetWidths();
+			visCfg.ResetWidths();
+			historyLineMode = -1;
 			modified = true;
 			modifiedHistory = true;
 		}

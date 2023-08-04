@@ -22,7 +22,10 @@ class CVis {
 			GLfloat colorGradient[4][4];
 			GLfloat trackWidth;
 			GLfloat trackPointWidth;
+			GLfloat historyWidth;
 			GLfloat neighborhoodWidth;
+			bool historyWideLine;
+			bool historyAdditive;
 
 			TConfig();
 			void Reset();
@@ -44,7 +47,7 @@ class CVis {
 		void SetPolygon(const std::vector<GLfloat>& vertices2D);
 
 		void DrawTrack(float upTo);
-		void DrawSimple();
+		void DrawHistory();
 		void DrawNeighborhood();
 
 		void AddToBackground();
@@ -83,6 +86,9 @@ class CVis {
 		typedef enum {
 			UBO_TRANSFORM,
 			UBO_LINE,
+			UBO_POINT,
+			UBO_LINE_HISTORY,
+			UBO_LINE_NEIGHBORHOOD,
 			UBO_COUNT // end marker
 		} TUBO;
 

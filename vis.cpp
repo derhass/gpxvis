@@ -79,7 +79,10 @@ void CVis::TConfig::ResetWidths()
 {
 	trackWidth = 5.0f;
 	trackPointWidth = 10.0f;
+	historyWidth = 2.0f;
 	neighborhoodWidth = 3.0f;
+	historyWideLine = false;
+	historyAdditive = false;
 }
 
 CVis::CVis() :
@@ -252,16 +255,30 @@ bool CVis::InitializeUBO(int i)
 			transformParam.size[3] = 1.0f/transformParam.size[1];
 			break;
 		case UBO_LINE:
+		case UBO_POINT:
+		case UBO_LINE_HISTORY:
+		case UBO_LINE_NEIGHBORHOOD:
 			size = sizeof(ubo::lineParam);
 			ptr = &lineParam;
-			memcpy(lineParam.colorBase, cfg.colorBase, 4*sizeof(GLfloat));
+			if (i == UBO_LINE_NEIGHBORHOOD) {
+				lineParam.colorBase[0] = 1.0f;
+				lineParam.colorBase[1] = 1.0f;
+				lineParam.colorBase[2] = 1.0f;
+				lineParam.colorBase[3] = 1.0f;
+			} else {
+				memcpy(lineParam.colorBase, cfg.colorBase, 4*sizeof(GLfloat));
+			}
 			memcpy(lineParam.colorGradient, cfg.colorGradient, 4*4*sizeof(GLfloat));
 			lineParam.distCoeff[0] = 1.0f;
 			lineParam.distCoeff[1] = 0.0f;
 			lineParam.distCoeff[2] = 1.0f;
 			lineParam.distCoeff[3] = 0.0f;
 			screenSize = (width < height)?(float)width:(float)height;
-			lineParam.lineWidths[0] = (float)cfg.neighborhoodWidth / screenSize;
+			if (i == UBO_LINE_HISTORY) {
+				lineParam.lineWidths[0] = (float)cfg.historyWidth / screenSize;
+			} else {
+				lineParam.lineWidths[0] = (float)cfg.neighborhoodWidth / screenSize;
+			}
 			lineParam.lineWidths[1] = (float)cfg.trackWidth / screenSize;
 			lineParam.lineWidths[2] = (float)cfg.trackPointWidth / screenSize;
 			lineParam.lineWidths[3] = (float)cfg.trackPointWidth / screenSize;
@@ -383,6 +400,7 @@ void CVis::DrawTrack(float upTo)
 			glBlendFunc(GL_ONE, GL_ONE);
 			glEnable(GL_BLEND);
 			glUseProgram(program[PROG_POINT_TRACK]);
+			glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_POINT]);
 			glUniform1f(1, upTo);
 			//glBlendEquation(GL_FUNC_ADD);
 			//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -391,17 +409,33 @@ void CVis::DrawTrack(float upTo)
 	}
 }
 
-void CVis::DrawSimple()
+void CVis::DrawHistory()
 {
-	glUseProgram(program[PROG_LINE_SIMPLE]);
 	glBindVertexArray(vaoEmpty);
-
-	glDisable(GL_BLEND);
-
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
-	glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)vertexCount);
+
+	if (cfg.historyWideLine) {
+		glUseProgram(program[PROG_LINE_NEIGHBORHOOD]);
+		glBlendEquation(GL_MAX);
+		glBlendFunc(GL_ONE, GL_ONE);
+		glEnable(GL_BLEND);
+		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE_HISTORY]);
+		glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(18*(vertexCount-1)));
+	} else {
+		glUseProgram(program[PROG_LINE_SIMPLE]);
+
+		if (cfg.historyAdditive) {
+			glBlendEquation(GL_FUNC_ADD);
+			glBlendFunc(GL_ONE, GL_ONE);
+			glEnable(GL_BLEND);
+		} else {
+			glDisable(GL_BLEND);
+		}
+
+		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+		glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)vertexCount);
+	}
 }
 
 void CVis::DrawNeighborhood()
@@ -415,7 +449,7 @@ void CVis::DrawNeighborhood()
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
-	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE_NEIGHBORHOOD]);
 	glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(18*(vertexCount-1)));
 }
 
@@ -423,7 +457,7 @@ void CVis::AddToBackground()
 {
 	glViewport(0,0,width,height);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	DrawSimple();
+	DrawHistory();
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
 	DrawNeighborhood();
@@ -433,7 +467,7 @@ void CVis::AddLineToBackground()
 {
 	glViewport(0,0,width,height);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	DrawSimple();
+	DrawHistory();
 }
 
 void CVis::AddLineToNeighborhood()
@@ -502,6 +536,9 @@ bool CVis::GetImage(gpximg::CImg& img) const
 void CVis::UpdateConfig()
 {
 	InitializeUBO(UBO_LINE);
+	InitializeUBO(UBO_POINT);
+	InitializeUBO(UBO_LINE_HISTORY);
+	InitializeUBO(UBO_LINE_NEIGHBORHOOD);
 }
 
 /****************************************************************************
