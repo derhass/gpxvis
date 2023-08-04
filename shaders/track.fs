@@ -10,6 +10,7 @@ layout(std140, binding=1) uniform lineParamUBO
 	vec4 colorBase;
 	vec4 colorGradient[4];
 	vec4 distCoeff;
+	vec4 distExp;
 	vec4 lineWidths;
 } lineParam;
 
@@ -22,6 +23,7 @@ void main()
 	if (d > 1.0) {
 		discard;
 	}
+	d = pow(d, lineParam.distExp.x);
 	gl_FragDepth = d;
 
 	float ndHere = texelFetch(texBackground, ivec2(gl_FragCoord.xy), 0).r;
@@ -30,5 +32,5 @@ void main()
 	//float nd = 2.0 * clamp(ndLine, 0.0, 1.999999);
 	int sel = int(nd);
 	vec3 col = mix(lineParam.colorGradient[sel].rgb, lineParam.colorGradient[sel+1].rgb, fract(nd));
-	color = vec4(col, 1-d);
+	color = vec4(col, 1.0-d);
 }

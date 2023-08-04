@@ -728,7 +728,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::Text("Dur: %02d:%02d:%02d", thrs, tmin, tsec);
 		ImGui::EndTable();
 	}
-	if (ImGui::TreeNodeEx("Histroy Maniupulation", ImGuiTreeNodeFlags_DefaultOpen)) {
+	if (ImGui::TreeNodeEx("Histroy Maniupulation", 0)) {
 		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Manipulate History and Neighborhood");
 		if (ImGui::BeginTable("histcontrolsplit1", 5)) {
@@ -995,10 +995,20 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (ImGui::SliderFloat("track width", &visCfg.trackWidth, 0.0f, 32.0f)) {
 			modified = true;
 		}
+		if (ImGui::SliderFloat("track sharpness", &visCfg.trackExp, 0.1f, 10.0f, "%0.2f", ImGuiSliderFlags_Logarithmic)) {
+			modified = true;
+		}
 		if (ImGui::SliderFloat("point size", &visCfg.trackPointWidth, 0.0f, 32.0f)) {
 			modified = true;
 		}
+		if (ImGui::SliderFloat("point sharpness", &visCfg.trackPointExp, 0.1f, 10.0f, "%0.2f", ImGuiSliderFlags_Logarithmic)) {
+			modified = true;
+		}
 		if (ImGui::SliderFloat("neighborhood width", &visCfg.neighborhoodWidth, 0.0f, 32.0f)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		if (ImGui::SliderFloat("neighborhood sharpness", &visCfg.neighborhoodExp, 0.1f, 10.0f, "%0.2f", ImGuiSliderFlags_Logarithmic)) {
 			modified = true;
 			modifiedHistory = true;
 		}
@@ -1026,6 +1036,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::BeginDisabled(!visCfg.historyWideLine);
 		if (ImGui::SliderFloat("history width", &visCfg.historyWidth, 0.0f, 32.0f)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		if (ImGui::SliderFloat("history sharpness", &visCfg.historyExp, 0.1f, 10.0f, "%0.2f", ImGuiSliderFlags_Logarithmic)) {
 			modified = true;
 			modifiedHistory = true;
 		}

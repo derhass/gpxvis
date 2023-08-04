@@ -21,9 +21,13 @@ class CVis {
 			GLfloat colorBase[4];
 			GLfloat colorGradient[4][4];
 			GLfloat trackWidth;
+			GLfloat trackExp;
 			GLfloat trackPointWidth;
+			GLfloat trackPointExp;
 			GLfloat historyWidth;
+			GLfloat historyExp;
 			GLfloat neighborhoodWidth;
+			GLfloat neighborhoodExp;
 			bool historyWideLine;
 			bool historyAdditive;
 
@@ -85,8 +89,7 @@ class CVis {
 
 		typedef enum {
 			UBO_TRANSFORM,
-			UBO_LINE,
-			UBO_POINT,
+			UBO_LINE_TRACK,
 			UBO_LINE_HISTORY,
 			UBO_LINE_NEIGHBORHOOD,
 			UBO_COUNT // end marker

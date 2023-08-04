@@ -21,6 +21,7 @@ struct lineParam {
 	GLfloat colorBase[4];
 	GLfloat colorGradient[4][4];
 	GLfloat distCoeff[4];
+	GLfloat distExp[4];
 	GLfloat lineWidths[4];
 };
 
@@ -78,9 +79,13 @@ void CVis::TConfig::ResetColors()
 void CVis::TConfig::ResetWidths()
 {
 	trackWidth = 5.0f;
+	trackExp = 1.0f;
 	trackPointWidth = 10.0f;
+	trackPointExp = 1.5f;
 	historyWidth = 2.0f;
+	historyExp = 1.0f;
 	neighborhoodWidth = 3.0f;
+	neighborhoodExp = 1.0f;
 	historyWideLine = false;
 	historyAdditive = false;
 }
@@ -254,8 +259,7 @@ bool CVis::InitializeUBO(int i)
 			transformParam.size[2] = 1.0f/transformParam.size[0];
 			transformParam.size[3] = 1.0f/transformParam.size[1];
 			break;
-		case UBO_LINE:
-		case UBO_POINT:
+		case UBO_LINE_TRACK:
 		case UBO_LINE_HISTORY:
 		case UBO_LINE_NEIGHBORHOOD:
 			size = sizeof(ubo::lineParam);
@@ -273,6 +277,16 @@ bool CVis::InitializeUBO(int i)
 			lineParam.distCoeff[1] = 0.0f;
 			lineParam.distCoeff[2] = 1.0f;
 			lineParam.distCoeff[3] = 0.0f;
+			if (i == UBO_LINE_HISTORY) {
+				lineParam.distExp[0] = cfg.historyExp;
+			} else if (i == UBO_LINE_NEIGHBORHOOD) {
+				lineParam.distExp[0] = cfg.neighborhoodExp;
+			} else {
+				lineParam.distExp[0] = cfg.trackExp;
+			}
+			lineParam.distExp[1] = cfg.trackPointExp;
+			lineParam.distExp[2] = 1.0f;
+			lineParam.distExp[3] = 1.0f;
 			screenSize = (width < height)?(float)width:(float)height;
 			if (i == UBO_LINE_HISTORY) {
 				lineParam.lineWidths[0] = (float)cfg.historyWidth / screenSize;
@@ -388,7 +402,7 @@ void CVis::DrawTrack(float upTo)
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 		glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
-		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
+		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE_TRACK]);
 
 		glBindTextures(0, 1, &tex[FB_NEIGHBORHOOD]);
 		glUniform1f(1, upTo);
@@ -400,7 +414,6 @@ void CVis::DrawTrack(float upTo)
 			glBlendFunc(GL_ONE, GL_ONE);
 			glEnable(GL_BLEND);
 			glUseProgram(program[PROG_POINT_TRACK]);
-			glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_POINT]);
 			glUniform1f(1, upTo);
 			//glBlendEquation(GL_FUNC_ADD);
 			//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -414,13 +427,13 @@ void CVis::DrawHistory()
 	glBindVertexArray(vaoEmpty);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, ssbo[SSBO_LINE]);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, ubo[UBO_TRANSFORM]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE_HISTORY]);
 
 	if (cfg.historyWideLine) {
 		glUseProgram(program[PROG_LINE_NEIGHBORHOOD]);
 		glBlendEquation(GL_MAX);
 		glBlendFunc(GL_ONE, GL_ONE);
 		glEnable(GL_BLEND);
-		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE_HISTORY]);
 		glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(18*(vertexCount-1)));
 	} else {
 		glUseProgram(program[PROG_LINE_SIMPLE]);
@@ -433,7 +446,6 @@ void CVis::DrawHistory()
 			glDisable(GL_BLEND);
 		}
 
-		glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE]);
 		glDrawArrays(GL_LINE_STRIP, 0, (GLsizei)vertexCount);
 	}
 }
@@ -535,8 +547,7 @@ bool CVis::GetImage(gpximg::CImg& img) const
 
 void CVis::UpdateConfig()
 {
-	InitializeUBO(UBO_LINE);
-	InitializeUBO(UBO_POINT);
+	InitializeUBO(UBO_LINE_TRACK);
 	InitializeUBO(UBO_LINE_HISTORY);
 	InitializeUBO(UBO_LINE_NEIGHBORHOOD);
 }
