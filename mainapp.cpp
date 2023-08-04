@@ -42,6 +42,7 @@ struct AppConfig {
 	bool debugOutputSynchronous;
 	bool withGUI;
 	bool exitAfterOutputFrames;
+	int switchTo;
 	char *outputFrames;
 
 	AppConfig() :
@@ -60,6 +61,7 @@ struct AppConfig {
 		withGUI(false),
 #endif
 		exitAfterOutputFrames(true),
+		switchTo(0),
 		outputFrames(NULL)
 	{
 #ifndef NDEBUG
@@ -376,6 +378,21 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 
 	/* initialize the GL context */
 	initGLState(app, cfg);
+
+	if (cfg.switchTo) {
+		size_t cnt = app->animCtrl.GetTrackCount();
+		size_t idx;
+		if (cfg.switchTo > 0) {
+			idx = (size_t)cfg.switchTo;
+		} else {
+			idx = (size_t)-cfg.switchTo;
+			if (idx > cnt) {
+				idx = cnt;
+			}
+			idx = cnt - idx;
+		}
+		app->animCtrl.SwitchToTrack(idx);
+	}
 
 	// TODO ...
 	if (!app->animCtrl.Prepare(app->width,app->height)) {
@@ -1256,6 +1273,9 @@ static void mainLoop(MainApp *app, AppConfig& cfg)
 
 void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 {
+	gpxvis::CAnimController::TAnimConfig& animCfg = app.animCtrl.GetAnimConfig();
+	//gpxvis::CVis::TConfig& visCfg = app.animCtrl.GetVis().GetConfig();
+
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--fullscreen")) {
 			cfg.fullscreen = true;
@@ -1268,6 +1288,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 			cfg.withGUI = false;
 		} else if (!strcmp(argv[i], "--with-gui")) {
 			cfg.withGUI = true;
+		} else if (!strcmp(argv[i], "--paused")) {
+			animCfg.paused = true;
 		} else {
 			bool unhandled = false;
 			if (i + 1 < argc) {
@@ -1289,6 +1311,16 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 				} else if (!strcmp(argv[i], "--output-fps")) {
 					double fps = strtod(argv[++i], NULL);
 					app.animCtrl.SetAnimSpeed(1.0/fps);
+				} else if (!strcmp(argv[i], "--track-speed")) {
+					animCfg.trackSpeed = strtod(argv[++i], NULL) * 3600.0;
+				} else if (!strcmp(argv[i], "--fade-time")) {
+					animCfg.fadeoutTime = strtod(argv[++i], NULL);
+				} else if (!strcmp(argv[i], "--history-mode")) {
+					animCfg.historyMode = (gpxvis::CAnimController::TBackgroundMode)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--neighborhood-mode")) {
+					animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--switch-to")) {
+					cfg.switchTo = (int)strtol(argv[++i], NULL, 10);
 				} else {
 					unhandled = true;
 				}
