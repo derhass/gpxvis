@@ -65,7 +65,7 @@ struct AppConfig {
 		outputFrames(NULL)
 	{
 #ifndef NDEBUG
-		debugOutputLevel = DEBUG_OUTPUT_ALL;
+		debugOutputLevel = DEBUG_OUTPUT_ERRORS_ONLY;
 #endif
 	}
 
