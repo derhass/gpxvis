@@ -54,6 +54,7 @@ class CVis {
 		void DrawHistory();
 		void DrawNeighborhood();
 
+		void AddHistory();
 		void AddToBackground();
 		void AddLineToBackground();
 		void AddLineToNeighborhood();
@@ -84,6 +85,7 @@ class CVis {
 			FB_NEIGHBORHOOD,
 			FB_TRACK,
 			FB_FINAL,
+			FB_SCRATCH,
 			FB_COUNT // end marker
 		} TFramebuffer;
 
@@ -100,6 +102,7 @@ class CVis {
 			PROG_LINE_TRACK,
 			PROG_LINE_NEIGHBORHOOD,
 			PROG_POINT_TRACK,
+			PROG_FULLSCREN_TEX,
 			PROG_FULLSCREEN_BLEND,
 			PROG_COUNT // end marker
 		} TProgram;

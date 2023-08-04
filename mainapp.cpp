@@ -953,19 +953,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	}
 
 	if (ImGui::TreeNodeEx("Visualization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-		static int historyLineMode = -1;
 		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Track Colors");
 		gpxvis::CVis::TConfig& visCfg=vis.GetConfig();
-		if (historyLineMode < 0) {
-			if (visCfg.historyAdditive) {
-				historyLineMode = 1;
-			} else if (visCfg.historyWideLine) {
-				historyLineMode = 2;
-			} else {
-				historyLineMode = 0;
-			}
-		}
+		int historyLineMode = (int)(visCfg.historyWideLine);
 		if (ImGui::ColorEdit3("track history", visCfg.colorBase)) {
 			modified = true;
 			modifiedHistory = true;
@@ -1014,23 +1005,19 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::TextUnformatted("History Line mode: ");
 		ImGui::SameLine();
-		if (ImGui::RadioButton("simple", &historyLineMode, 0)) {
+		if (ImGui::RadioButton("thin", &historyLineMode, 0)) {
 			visCfg.historyWideLine = false;
-			visCfg.historyAdditive = false;
 			modified = true;
 			modifiedHistory = true;
 		}
 		ImGui::SameLine();
-		if (ImGui::RadioButton("additive", &historyLineMode, 1)) {
-			visCfg.historyWideLine = false;
-			visCfg.historyAdditive = true;
-			modified = true;
-			modifiedHistory = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("wide", &historyLineMode, 2)) {
+		if (ImGui::RadioButton("wide", &historyLineMode, 1)) {
 			visCfg.historyWideLine = true;
-			visCfg.historyAdditive = false;
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Checkbox("additive", &visCfg.historyAdditive)) {
 			modified = true;
 			modifiedHistory = true;
 		}
@@ -1046,7 +1033,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndDisabled();
 		if (ImGui::Button("Reset Line Parameters", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			visCfg.ResetWidths();
-			historyLineMode = -1;
 			modified = true;
 			modifiedHistory = true;
 		}

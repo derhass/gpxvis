@@ -193,6 +193,7 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio)
 		{ "shaders/track.vs", "shaders/track.fs"},
 		{ "shaders/line.vs", "shaders/line.fs"},
 		{ "shaders/point.vs", "shaders/point.fs"},
+		{ "shaders/fullscreen.vs", "shaders/tex.fs"},
 		{ "shaders/fullscreen.vs", "shaders/blend.fs"},
 	};
 
@@ -465,12 +466,30 @@ void CVis::DrawNeighborhood()
 	glDrawArrays(GL_TRIANGLES, 0, (GLsizei)(18*(vertexCount-1)));
 }
 
+void CVis::AddHistory()
+{
+	if (cfg.historyWideLine && cfg.historyAdditive) {
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_SCRATCH]);
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		glClear(GL_COLOR_BUFFER_BIT);
+		DrawHistory();
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
+		glUseProgram(program[PROG_FULLSCREN_TEX]);
+		glBindTextures(3, 1, &tex[FB_SCRATCH]);
+		glBlendEquation(GL_FUNC_ADD);
+		glBlendFunc(GL_ONE, GL_ONE);
+		glEnable(GL_BLEND);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+	} else {
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
+		DrawHistory();
+	}
+}
+
 void CVis::AddToBackground()
 {
-	glViewport(0,0,width,height);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	DrawHistory();
-
+	glViewport(0,0,width,height);		
+	AddHistory();
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_NEIGHBORHOOD]);
 	DrawNeighborhood();
 }
@@ -478,8 +497,7 @@ void CVis::AddToBackground()
 void CVis::AddLineToBackground()
 {
 	glViewport(0,0,width,height);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	DrawHistory();
+	AddHistory();
 }
 
 void CVis::AddLineToNeighborhood()
