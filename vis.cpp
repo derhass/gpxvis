@@ -903,7 +903,7 @@ bool CAnimController::UpdateStep(double timeDelta)
 			break;
 		case PHASE_TRACK:
 			curTrackUpTo = GetTrackAnimation(nextPhase);
-			vis.DrawTrack(GetTrackAnimation(nextPhase));
+			vis.DrawTrack(curTrackUpTo);
 			vis.MixTrackAndBackground(1.0f - curFadeRatio);
 			break;
 		case PHASE_FADEOUT_INIT:
