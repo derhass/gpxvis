@@ -12,6 +12,8 @@
 namespace gpx {
 
 struct TPoint {
+	double lon;
+	double lat;
 	double x;
 	double y;
 	double h;
@@ -48,8 +50,10 @@ class CTrack {
 	private:
 		std::vector<TPoint> points;
 		gpxutil::CAABB      aabb;
+		gpxutil::CAABB      aabbLonLat;
 		double              totalLen;
 		double              totalDuration;
+		double              projectionScale;
 		std::string fullFilename;
 		std::string info;
 };

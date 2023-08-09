@@ -68,11 +68,14 @@ static time_t getTime(const char *str)
 
 static void projectMercator(double lon, double lat, double& x, double&y)
 {
-	const double s = 26078.0;
+	// mercator projection with km as units, for a point on the equator
+	// we apply a latitude-based scale factor when calculating the individual lenghts
+	const double sx = 40075.0167; // equator length in km
+	const double sy = 39940.65274158; // meridian length accrdoing to WGS84 flattening factor
 	lon = lon * M_PI / 180.0;
 	lat = lat * M_PI / 180.0;
-	x = (s * (lon + M_PI)) / (2.0 * M_PI);
-	y = (s * (M_PI + log(tan(M_PI/4.0 + lat * 0.5)))) / (2.0 * M_PI);
+	x = (sx * (lon + M_PI)) / (2.0 * M_PI);
+	y = (sy * (M_PI + log(tan(M_PI/4.0 + lat * 0.5)))) / (2.0 * M_PI);
 }
 
 bool CTrack::Load(const char *filename)
@@ -119,47 +122,65 @@ bool CTrack::Load(const char *filename)
 
 		if (lat && lon) {
 			TPoint pt;
-			double lonVal = getDbl(lon);
-			double latVal = getDbl(lat);
-			projectMercator(lonVal,latVal,pt.x,pt.y);
+			pt.lon = getDbl(lon);
+			pt.lat = getDbl(lat);
+			projectMercator(pt.lon,pt.lat,pt.x,pt.y);
 			pt.h = getDbl(ele);
 			pt.timestamp = getTime(time);
 
-
 			aabb.Add(pt.x,pt.y,pt.h);
+			aabbLonLat.Add(pt.lon, pt.lat, pt.h); 
 
-			size_t cnt = points.size();
 			pt.len = 0.0;
 			pt.duration = 0.0;
 			pt.posOnTrack = 0.0;
 			pt.timeOnTrack = 0.0;
-			if (cnt > 0) {
-				double dx = pt.x - points[cnt-1].x;
-				double dy = pt.y - points[cnt-1].y;
-				double len = sqrt(dx*dx + dy*dy);
-				points[cnt-1].len = len;
-				totalLen += len;
-				pt.posOnTrack = totalLen;
-				if (points[cnt-1].timestamp > pt.timestamp) {
-					gpxutil::warn("gpx file '%s': time warp deteced at point %llu", filename, (unsigned long long)cnt);
-					pt.timestamp = points[cnt-1].timestamp;
-				}
-				double dur = (double)difftime(pt.timestamp, points[cnt-1].timestamp);
-				points[cnt-1].duration = dur;
-				totalDuration += dur;
-				pt.timeOnTrack = totalDuration;
-			}
-
 			points.push_back(pt);
 		} else {
 			gpxutil::warn("gpx file '%s': invalid trkpt occured", filename);
 		}
 	}
 	free(source);
+
+	if (points.size() < 2) {
+		gpxutil::warn("gpx file '%s': contains no track, only %u points found", filename, (unsigned)points.size());
+		return false;
+	}
+
+	double geoCenter[3];
+	if (aabbLonLat.GetCenter(geoCenter)) {
+		projectionScale = cos(geoCenter[1] * M_PI / 180.0);
+	}
+	projectionScale = 0.0;
+
+	for (size_t i=1;  i < points.size(); i++) {
+		TPoint& A = points[i-1];
+		TPoint& B = points[i];
+		double dx = B.x - A.x;
+		double dy = B.y - A.y;
+		// estimate scale for each line segment separately
+		double pScale = cos((0.5 * A.lat + 0.5 * B.lat) * M_PI / 180.0);
+		A.len = sqrt(dx*dx + dy*dy) * pScale;
+		projectionScale += pScale;
+		totalLen += A.len;
+		B.posOnTrack = totalLen;
+
+		double dur = (double)difftime(B.timestamp, A.timestamp);
+		if (dur < 0.0) {
+			gpxutil::warn("gpx file '%s': time warp deteced at point %llu", filename, (unsigned long long)i);
+			B.timestamp = A.timestamp;
+			dur = 0.0;
+		}
+		A.duration = dur;
+		totalDuration += dur;
+		B.timeOnTrack = totalDuration;
+	}
+	projectionScale /= (double)points.size(); // average projection scale
+
 	const double *a = aabb.Get();
-	gpxutil::info("gpx file '%s': %llu points, total len: %f, duration: %f, aabb: (%f %f %f) - (%f %f %f)",
+	gpxutil::info("gpx file '%s': %llu points, total len: %f, duration: %f, aabb: (%f %f %f) - (%f %f %f), projection scale: %f",
 			filename, (unsigned long long)GetCount(), totalLen, totalDuration,
-			a[0], a[1], a[2], a[3], a[4], a[5], a[6]);
+			a[0], a[1], a[2], a[3], a[4], a[5], projectionScale);
 	fullFilename = filename;
 	if (points.size() > 0) {
 		struct tm *tm;
@@ -177,8 +198,10 @@ void CTrack::Reset()
 {
 	points.clear();
 	aabb.Reset();
+	aabbLonLat.Reset();
 	totalLen = 0.0;
 	totalDuration = 0.0;
+	projectionScale = 1.0;
 	fullFilename.clear();
 	info = "(empty track)";
 }

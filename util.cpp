@@ -425,6 +425,18 @@ double CAABB::GetAspect() const
 	return 1.0;
 }
 
+bool CAABB::GetCenter(double center[3]) const
+{
+	if (IsValid()) {
+		center[0] = 0.5 * aabb[0] + 0.5 * aabb[3];
+		center[1] = 0.5 * aabb[1] + 0.5 * aabb[4];
+		center[2] = 0.5 * aabb[2] + 0.5 * aabb[5];
+		return true;
+	}
+	center[0] = center[1] = center[2] = 0.0;
+	return false;
+}
+
 /****************************************************************************
  * MISC UTILITIES                                                           *
  ****************************************************************************/

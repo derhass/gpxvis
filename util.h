@@ -130,6 +130,7 @@ class CAABB {
 		void Enhance(double relative, double absolute);
 		void MergeWith(const CAABB& other);
 		double GetAspect() const;
+		bool GetCenter(double center[3]) const;
 
 	private:
 		double aabb[6];
