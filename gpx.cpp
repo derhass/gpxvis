@@ -189,6 +189,8 @@ bool CTrack::Load(const char *filename)
 		mysnprintf(buf, sizeof(buf), "%04d-%02d-%02d", tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday);
 		buf[sizeof(buf)-1] = 0;
 		info = buf;
+		gpxutil::durationToString(totalDuration, buf, sizeof(buf));
+		durationStr = buf;
 	}
 
 	return true;
@@ -204,6 +206,7 @@ void CTrack::Reset()
 	projectionScale = 1.0;
 	fullFilename.clear();
 	info = "(empty track)";
+	durationStr.clear();
 }
 
 void CTrack::GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const

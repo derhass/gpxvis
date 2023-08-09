@@ -143,5 +143,8 @@ class CAABB {
 /* round GLsizei to next multiple of base */
 extern GLsizei roundNextMultiple(GLsizei value, GLsizei base);
 
+/* get duration in human-readable string format */
+extern bool durationToString(double seconds, char *buffer, size_t bufSize);
+
 } // namespace gpxutil
 #endif // GPXVIS_UTIL_H

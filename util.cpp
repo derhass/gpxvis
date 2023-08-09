@@ -1,5 +1,6 @@
 #include "util.h"
 
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -449,6 +450,32 @@ GLsizei roundNextMultiple(GLsizei value, GLsizei base)
 		value += base - rem;
 	}
 	return value;
+}
+
+/* get duration in human-readable string format */
+bool durationToString(double seconds, char *buffer, size_t bufSize)
+{
+	if (!buffer && bufSize < 1) {
+		return false;
+	}
+
+	double minutes = floor(seconds / 60.0);
+	if (minutes <= 0.5) {
+		mysnprintf(buffer, bufSize, "%02.0fs", seconds);
+	} else {
+		seconds -= 60.0 * minutes;
+		double hours = floor(minutes / 60.0);
+		minutes -= 60.0 * hours;
+		double days = floor(hours / 24.0);
+		hours -= 24.0 * days;
+		if (days <= 0.5) {
+			mysnprintf(buffer, bufSize, "%02.0f:%02.0f:%02.0f", hours, minutes, seconds);
+		} else {
+			mysnprintf(buffer, bufSize, "%.0fdays %02.0f:%02.0f:%02.0f", days, hours, minutes, seconds);
+		}
+	}
+	buffer[bufSize-1] = 0;
+	return true;
 }
 
 } // namespace gpxutil

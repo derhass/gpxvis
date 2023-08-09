@@ -480,18 +480,31 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 {
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 600, main_viewport->WorkPos.y+100), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(512, 0), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(640, 0), ImGuiCond_FirstUseEver);
 	std::vector<gpx::CTrack>& tracks=animCtrl.GetTracks();
 	bool modified = false;
+	bool disabled = (tracks.size() < 1);
 	static size_t curIdx = 0;
 	if (!ImGui::Begin("Track Manager", isOpen)) {
 		ImGui::End();
 	}
+	ImGui::SeparatorText("Info:");
+	ImGui::BeginDisabled(disabled);
+	if (ImGui::BeginTable("managerinfosplit", 3)) {
+		ImGui::TableNextColumn();
+		ImGui::Text("%llu tracks loaded", (unsigned long long)tracks.size());
+		ImGui::TableNextColumn();
+		ImGui::Text("length: %.1fkm", animCtrl.GetAllTrackLength());
+		ImGui::TableNextColumn();
+		ImGui::Text("duration: %s", animCtrl.GetAllTrackDurationString());
+		ImGui::EndTable();
+	}
+	ImGui::EndDisabled();
 	ImGui::SeparatorText("Files:");
-	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN,  24 * ImGui::GetTextLineHeightWithSpacing()))) {
+	if (ImGui::BeginListBox("##listbox 2", ImVec2(-FLT_MIN,  40 * ImGui::GetTextLineHeightWithSpacing()))) {
 		for (size_t i=0; i<tracks.size(); i++) {
 			char info[512];
-			mysnprintf(info, sizeof(info), "%d. %s [%s]", (int)(i+1), tracks[i].GetFilename(), tracks[i].GetInfo());
+			mysnprintf(info, sizeof(info), "%d. %s [%s] %.1fkm %s", (int)(i+1), tracks[i].GetFilename(), tracks[i].GetInfo(), tracks[i].GetLength(), tracks[i].GetDurationString());
 			info[sizeof(info)-1]=0;
 			bool isSelected = (curIdx == i);
 			if (ImGui::Selectable(info, isSelected)) {
@@ -505,6 +518,7 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 	}
 	std::vector<gpx::CTrack>::iterator it=tracks.begin();
 	std::advance(it, curIdx);
+	ImGui::BeginDisabled(disabled);
 	if (ImGui::BeginTable("managerpertracksplit", 6)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Switch to", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -568,6 +582,7 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		}
 		ImGui::EndTable();
 	}
+	ImGui::EndDisabled();
 	if (ImGui::BeginTable("managerpertracksplit2", 2)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Remove all Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -720,12 +735,9 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::TableNextColumn();
 		ImGui::Text("%s", curTrack->GetInfo());
 		ImGui::TableNextColumn();
-		ImGui::Text("Len: %.1f (%dpts)", curTrack->GetLength(), (int)curTrack->GetCount());
+		ImGui::Text("Len: %.1fkm (%dpts)", curTrack->GetLength(), (int)curTrack->GetCount());
 		ImGui::TableNextColumn();
-		int thrs = (int)floor(curTrack->GetDuration() / 3600.0);
-		int tmin = (int)floor((curTrack->GetDuration() - 3600.0*thrs) / 60.0);
-		int tsec = (int)floor((curTrack->GetDuration() - 3600.0*thrs - 60.0*tmin));
-		ImGui::Text("Dur: %02d:%02d:%02d", thrs, tmin, tsec);
+		ImGui::Text("Dur: %s", curTrack->GetDurationString());
 		ImGui::EndTable();
 	}
 	if (ImGui::TreeNodeEx("Histroy Maniupulation", 0)) {
@@ -829,10 +841,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (trackUpTo < 0.0f) {
 			trackUpTo = (float)curTrack->GetCount();
 		}
-		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, (float)curTrack->GetDuration()-1.0f, "%.1f")) {
+		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, (float)curTrack->GetDuration()-1.0f, "%.1fs")) {
 			animCtrl.SetCurrentTrackPos((double)trackTime);
 		}
-		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, (float)curTrack->GetLength(), "%.3f")) {
+		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, (float)curTrack->GetLength(), "%.3fkm")) {
 			trackUpTo = curTrack->GetPointByDistance((double)trackPos);
 			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
 			animCtrl.SetCurrentTrackPos((double)trackTime);

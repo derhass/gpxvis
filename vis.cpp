@@ -613,7 +613,9 @@ CAnimController::CAnimController() :
 	curPhase(PHASE_INIT),
 	prepared(false),
 	newCycle(true),
-	animationTime(0.0)
+	animationTime(0.0),
+	allTrackLength(0.0),
+	allTrackDuration(0.0)
 {
 }
 
@@ -647,6 +649,11 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	}
 	gpxutil::info("have %llu tracks, total lenght: %f, total duration: %f",
 		(unsigned long long)tracks.size(), totalLen, totalDur);
+	allTrackLength = totalLen;
+	allTrackDuration = totalDur;
+	char tbuf[64];
+	gpxutil::durationToString(totalDur, tbuf, sizeof(tbuf));
+	allTrackDurationString = tbuf;
 
 	gpxutil::CAABB screenAABB = aabb;
 	screenAABB.Enhance(1.05,0.0);

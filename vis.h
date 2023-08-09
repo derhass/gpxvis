@@ -199,6 +199,9 @@ class CAnimController {
 		float GetCurrentFadeRatio() const {return curFadeRatio;}
 		void SetCurrentFadeRatio(float v) {curFadeRatio = v; curFadeTime = curFadeRatio * animCfg.fadeoutTime; }
 
+		double GetAllTrackLength() const {return allTrackLength;}
+		double GetAllTrackDuration() const {return allTrackDuration;}
+		const char* GetAllTrackDurationString() const {return allTrackDurationString.c_str();}
 	private:
 		typedef enum {
 			PHASE_INIT,
@@ -227,6 +230,9 @@ class CAnimController {
 
 		double        offset[3];
 		double        scale[3];
+		double        allTrackLength;
+		double        allTrackDuration;
+		std::string   allTrackDurationString;
 
 		CVis  vis;
 		gpxutil::CAABB aabb;

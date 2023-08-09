@@ -46,6 +46,7 @@ class CTrack {
 
 		const char* GetFilename() const {return fullFilename.c_str();}
 		const char* GetInfo() const {return info.c_str();}
+		const char* GetDurationString() const {return durationStr.c_str();}
 
 	private:
 		std::vector<TPoint> points;
@@ -56,6 +57,7 @@ class CTrack {
 		double              projectionScale;
 		std::string fullFilename;
 		std::string info;
+		std::string durationStr;
 };
 
 } // namespace gpx
