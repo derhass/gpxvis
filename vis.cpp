@@ -931,21 +931,38 @@ bool CAnimController::UpdateStep(double timeDelta)
 				vis.AddLineToNeighborhood();
 			}
 			if (++curTrack >= tracks.size()) {
-				cycleFinished = true;
-				newCycle = true;
-				animationTime = 0.0;
+				if (tracks.size() > 0) {
+					curTrack = tracks.size() - 1;
+				} else {
+					curTrack = 0;
+				}
+				nextPhase = PHASE_CYCLE;
 				if (animCfg.pauseAtCycle) {
 					animCfg.paused = true;
 				}
-				curTrack = 0;
 				if (animCfg.clearAtCycle) {
 					vis.Clear();
 				}
+			} else {
+				curFadeRatio = 0.0f;
+				curFadeTime = 0.0;
+				UpdateTrack(curTrack);
+				nextPhase = PHASE_INIT;
 			}
-			curFadeRatio = 0.0f;
-			curFadeTime = 0.0;
-			UpdateTrack(curTrack);
-			nextPhase = PHASE_INIT;
+			break;
+		case PHASE_CYCLE:
+			if (!animCfg.paused) {
+				curTrack = 0;
+				newCycle = true;
+				animationTime = 0.0;
+				nextPhase = PHASE_INIT;
+				curFadeRatio = 0.0f;
+				curFadeTime = 0.0;
+				UpdateTrack(curTrack);
+			}
+			vis.DrawTrack(curTrackUpTo);
+			vis.MixTrackAndBackground(1.0f - curFadeRatio);
+			cycleFinished = true;
 			break;
 		default:
 			nextPhase = PHASE_INIT;

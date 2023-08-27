@@ -209,6 +209,7 @@ class CAnimController {
 			PHASE_FADEOUT_INIT,
 			PHASE_FADEOUT,
 			PHASE_SWITCH_TRACK,
+			PHASE_CYCLE,
 		} TPhase;
 
 		TAnimConfig   animCfg;
