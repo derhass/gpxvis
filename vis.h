@@ -202,6 +202,15 @@ class CAnimController {
 		double GetAllTrackLength() const {return allTrackLength;}
 		double GetAllTrackDuration() const {return allTrackDuration;}
 		const char* GetAllTrackDurationString() const {return allTrackDurationString.c_str();}
+
+		typedef enum : int {
+			BY_TIME,
+			BY_NAME,
+			BY_LENGTH,
+			BY_DURATION,
+		} TSortMode;
+
+		void SortTracks(TSortMode sortMode = BY_TIME);
 	private:
 		typedef enum {
 			PHASE_INIT,
@@ -238,6 +247,7 @@ class CAnimController {
 		CVis  vis;
 		gpxutil::CAABB aabb;
 		std::vector<gpx::CTrack> tracks;
+		gpxutil::CInternalIDGenerator<size_t> trackIDManager;
 
 		void   UpdateTrack(size_t idx);
 

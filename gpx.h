@@ -44,9 +44,15 @@ class CTrack {
 		double GetDistanceAt(float animPos) const;
 		double GetDurationAt(float animPos) const;
 
+		const std::string& GetFilenameStr() const {return fullFilename;}
 		const char* GetFilename() const {return fullFilename.c_str();}
 		const char* GetInfo() const {return info.c_str();}
 		const char* GetDurationString() const {return durationStr.c_str();}
+
+		time_t GetStartTimestamp() const;
+
+		void   SetInternalID(size_t id) {internalID = id;}
+		size_t GetIntenalID() const {return internalID;}
 
 	private:
 		std::vector<TPoint> points;
@@ -55,10 +61,16 @@ class CTrack {
 		double              totalLen;
 		double              totalDuration;
 		double              projectionScale;
+		size_t              internalID;
 		std::string fullFilename;
 		std::string info;
 		std::string durationStr;
 };
+
+bool EarlierThan(const CTrack& a, const CTrack& b);
+bool EarlierFilenameThan(const CTrack& a, const CTrack& b);
+bool ShorterDurationThan(const CTrack& a, const CTrack& b);
+bool ShorterDistanceThan(const CTrack& a, const CTrack& b);
 
 } // namespace gpx
 

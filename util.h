@@ -137,6 +137,23 @@ class CAABB {
 };
 
 /****************************************************************************
+ * MANAGER FOR INTERNAL IDs                                                 *
+ ****************************************************************************/
+
+template <typename T>
+class CInternalIDGenerator {
+	public:
+		CInternalIDGenerator() :
+			internalIDCounter(1)
+		{}
+
+		T GenerateID() {return internalIDCounter++;}
+
+	private:
+		T internalIDCounter;
+};
+
+/****************************************************************************
  * MISC UTILITIES                                                           *
  ****************************************************************************/
 

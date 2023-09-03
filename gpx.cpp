@@ -10,7 +10,8 @@
 
 namespace gpx {
 
-CTrack::CTrack()
+CTrack::CTrack() :
+	internalID(0)
 {
 	Reset();
 }
@@ -364,6 +365,34 @@ double CTrack::GetDurationAt(float animPos) const
 	if (animPos < 0.0) {
 		return GetDuration();
 	}
+}
+
+time_t CTrack::GetStartTimestamp() const
+{
+	if (points.size() > 0) {
+		return points[0].timestamp;
+	}
+	return (time_t)0;
+}
+
+bool EarlierThan(const CTrack& a, const CTrack& b)
+{
+	return (a.GetStartTimestamp() < b.GetStartTimestamp());
+}
+
+bool EarlierFilenameThan(const CTrack& a, const CTrack& b)
+{
+	return (a.GetFilenameStr() < b.GetFilenameStr());
+}
+
+bool ShorterDurationThan(const CTrack& a, const CTrack& b)
+{
+	return (a.GetDuration() < b.GetDuration());
+}
+
+bool ShorterDistanceThan(const CTrack& a, const CTrack& b)
+{
+	return (a.GetLength() < b.GetLength());
 }
 
 } // namespace gpx

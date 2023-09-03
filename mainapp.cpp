@@ -582,6 +582,25 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		}
 		ImGui::EndTable();
 	}
+	if (ImGui::BeginTable("managerpertracksplit3", 4)) {
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Sort by Date", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.SortTracks(gpxvis::CAnimController::BY_TIME);
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Sort by Distance", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.SortTracks(gpxvis::CAnimController::BY_LENGTH);
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Sort by Duration", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.SortTracks(gpxvis::CAnimController::BY_DURATION);
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Sort by Name", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			animCtrl.SortTracks(gpxvis::CAnimController::BY_NAME);
+		}
+		ImGui::EndTable();
+	}
 	ImGui::EndDisabled();
 	if (ImGui::BeginTable("managerpertracksplit2", 2)) {
 		ImGui::TableNextColumn();

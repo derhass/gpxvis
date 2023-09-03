@@ -1,5 +1,6 @@
 #include "vis.h"
 
+#include <algorithm>
 #include <string.h>
 
 #include "util.h"
@@ -627,6 +628,7 @@ bool CAnimController::AddTrack(const char *filename)
 		tracks.resize(idx);
 		return false;
 	}
+	tracks[idx].SetInternalID(trackIDManager.GenerateID());
 	prepared = false;
 	return true;
 }
@@ -1079,6 +1081,39 @@ void CAnimController::ResetAnimation()
 	curPhase = PHASE_INIT;
 	vis.Clear();
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
+
+void CAnimController::SortTracks(TSortMode sortMode)
+{
+	size_t cnt = tracks.size();
+	if (cnt < 2) {
+		return;
+	}
+	size_t curId = (curTrack < cnt) ? tracks[curTrack].GetIntenalID() : 0;
+	switch (sortMode) {
+		case BY_TIME:
+			std::sort(tracks.begin(),tracks.end(), gpx::EarlierThan);
+			break;
+		case BY_LENGTH:
+			std::sort(tracks.begin(),tracks.end(), gpx::ShorterDistanceThan);
+			break;
+		case BY_DURATION:
+			std::sort(tracks.begin(),tracks.end(), gpx::ShorterDurationThan);
+			break;
+		default:
+			std::sort(tracks.begin(),tracks.end(), gpx::EarlierFilenameThan);
+	}
+	bool found = false;
+	for (size_t i=0; i<cnt; i++) {
+		if (tracks[i].GetIntenalID() == curId) {
+			curTrack = i;
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		SwitchToTrack(0);
+	}
 }
 
 } // namespace gpxvis
