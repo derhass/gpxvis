@@ -222,6 +222,7 @@
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="mainapp.cpp" />
+    <ClCompile Include="filedialog.cpp" />
     <ClCompile Include="gpx.cpp" />
     <ClCompile Include="util.cpp" />
     <ClCompile Include="vis.cpp" />

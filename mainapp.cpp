@@ -9,6 +9,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "filedialog.h"
 #endif
 
 #include <math.h>
@@ -94,6 +95,9 @@ typedef struct {
 	int maxGlSize;
 	// actual visualizer
 	gpxvis::CAnimController animCtrl;
+#ifdef GPXVIS_WITH_IMGUI
+	filedialog::CFileDialogTracks *fileDialog;
+#endif
 } MainApp;
 
 /* flags */
@@ -267,6 +271,9 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->avg_frametime=-1.0;
 	app->avg_fps=-1.0;
 	app->frame = 0;
+#ifdef GPXVIS_WITH_IMGUI
+	app->fileDialog = NULL;
+#endif
 
 	/* initialize GLFW library */
 	gpxutil::info("initializing GLFW");
@@ -632,8 +639,11 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 			modified = true;
 		}
 		ImGui::TableNextColumn();
-		ImGui::BeginDisabled();
+		ImGui::BeginDisabled((app->fileDialog == NULL));
 		if (ImGui::Button("Add Files", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (app->fileDialog) {
+				app->fileDialog->Open();
+			}
 		}
 		ImGui::EndDisabled();
 		ImGui::EndTable();
@@ -1165,6 +1175,21 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (showTrackManager) {
 		drawTrackManager(app, animCtrl, vis, &showTrackManager);
 	}
+	if (app->fileDialog && app->fileDialog->Visible()) {
+		if (app->fileDialog->Draw()) {
+			GLsizei w = vis.GetWidth();
+			GLsizei h = vis.GetHeight();
+			if (w < 1) {
+				w = (GLsizei)app->width;
+			}
+			if (h < 1) {
+				h = (GLsizei)app->height;
+			}
+			animCtrl.Prepare(w,h);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		}
+
+	}
 	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	first  = false;
 }
@@ -1412,10 +1437,16 @@ int main (int argc, char **argv)
 {
 	AppConfig cfg;	/* the generic configuration */
 	MainApp app;	/* the cube application stata stucture */
+#ifdef GPXVIS_WITH_IMGUI
+	filedialog::CFileDialogTracks fileDialog(app.animCtrl);
+#endif
 
 	parseCommandlineArgs(cfg, app, argc, argv);
 
 	if (initMainApp(&app, cfg)) {
+#ifdef GPXVIS_WITH_IMGUI
+		app.fileDialog = &fileDialog;
+#endif
 		/* initialization succeeded, enter the main loop */
 		mainLoop(&app, cfg);
 	}
