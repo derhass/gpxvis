@@ -629,25 +629,13 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		ImGui::EndTable();
 	}
 
-	ImGui::SeparatorText("Add files");
-	static char bufPath[256];
-	ImGui::InputText("filename", bufPath, sizeof(bufPath));
-	if (ImGui::BeginTable("manageraddsplit", 2)) {
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Add File", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			animCtrl.AddTrack(bufPath);
-			modified = true;
+	ImGui::BeginDisabled((app->fileDialog == NULL));
+	if (ImGui::Button("Add Files", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+		if (app->fileDialog) {
+			app->fileDialog->Open();
 		}
-		ImGui::TableNextColumn();
-		ImGui::BeginDisabled((app->fileDialog == NULL));
-		if (ImGui::Button("Add Files", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			if (app->fileDialog) {
-				app->fileDialog->Open();
-			}
-		}
-		ImGui::EndDisabled();
-		ImGui::EndTable();
 	}
+	ImGui::EndDisabled();
 
 	if (modified) {
 		GLsizei w = vis.GetWidth();
@@ -685,6 +673,9 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 
 	if (first && disabled) {
 		showTrackManager = true;
+		if (app->fileDialog) {
+			app->fileDialog->Open();
+		}
 	}
 
 	char buf[16];

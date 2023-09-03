@@ -30,10 +30,10 @@ endif
 
 # include paths for the builtin libraries glad and glm. We do not link them,
 # as we directly incorporated the source code into our project
-CPPFLAGS += -I glad/include -I imgui -I imgui/backends
+CPPFLAGS += -I glad/include
 
 ifeq ($(WITH_IMGUI), 1)
-CPPFLAGS +=  -I imgui -I imgui/backends -DGPXVIS_WITH_IMGUI
+CPPFLAGS +=  -I imgui -I imgui/backends -I imgui/misc/cpp -DGPXVIS_WITH_IMGUI
 endif
 
 # Try to find the system's GLFW3 library via pkg-config
@@ -52,7 +52,7 @@ ALLFILES = $(SRCFILES) $(INCFILES) $(PRJFILES)
 OBJECTS = $(patsubst %.cpp,%.o,$(CPPFILES)) $(patsubst %.c,%.o,$(CFILES))
 	   
 ifeq ($(WITH_IMGUI), 1)
-CPPFILES += $(IMGUI_SRCFILES) imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_opengl3.cpp
+CPPFILES += $(IMGUI_SRCFILES) imgui/misc/cpp/imgui_stdlib.cpp imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_opengl3.cpp
 endif
 # build rules
 .PHONY: all
@@ -78,6 +78,7 @@ $(DEPDIR)/dir:
 	@mkdir -p $(DEPDIR)/glad/src
 	@mkdir -p $(DEPDIR)/imgui
 	@mkdir -p $(DEPDIR)/imgui/backends
+	@mkdir -p $(DEPDIR)/imgui/misc/cpp
 	@touch $(DEPDIR)/dir
 $(DEPDIR)/%.d: %.c $(DEPDIR)/dir
 	@echo rebuilding dependencies for $*

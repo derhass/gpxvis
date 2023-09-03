@@ -120,7 +120,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends;imgui\misc\cpp</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -143,7 +143,7 @@
       </PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends;imgui\misc\cpp</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -167,7 +167,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <OpenMPSupport>true</OpenMPSupport>
-      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends;imgui\misc\cpp</AdditionalIncludeDirectories>
       <OmitFramePointers>true</OmitFramePointers>
     </ClCompile>
     <Link>
@@ -195,7 +195,7 @@
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <OpenMPSupport>true</OpenMPSupport>
-      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>GLFW\include;glad\include;imgui\;imgui\backends;imgui\misc\cpp</AdditionalIncludeDirectories>
       <OmitFramePointers>true</OmitFramePointers>
     </ClCompile>
     <Link>
@@ -217,6 +217,7 @@
     <ClCompile Include="img.cpp" />
     <ClCompile Include="imgui\backends\imgui_impl_glfw.cpp" />
     <ClCompile Include="imgui\backends\imgui_impl_opengl3.cpp" />
+    <ClCompile Include="imgui\misc\cpp\imgui_stdlib.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
