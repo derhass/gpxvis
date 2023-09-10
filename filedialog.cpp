@@ -5,6 +5,7 @@
 #ifdef GPXVIS_WITH_IMGUI
 
 #ifdef WIN32
+#include <Windows.h>
 #include <string.h>
 #else
 #include <sys/types.h>
@@ -64,7 +65,7 @@ static bool extensionMatches(const std::string& file, const std::string& extensi
 		const char *e = extension.c_str();
 		const char *f = file.c_str() + fl - el;
 #ifdef WIN32
-		return (stricmp(e,f) == 0);
+		return (_stricmp(e,f) == 0);
 #else
 		return (strcasecmp(e,f) == 0);
 #endif
@@ -72,11 +73,40 @@ static bool extensionMatches(const std::string& file, const std::string& extensi
 	return false;
 }
 
+#ifdef WIN32
+static void processDirectoryEntry(WIN32_FIND_DATAA& ffd, const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files)
+{
+	std::string name(ffd.cFileName);
+	if (name == ".") {
+		return;
+	}
+	if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+		subdirs.push_back(name);
+	} else {
+		files.push_back(name);
+	}
+}
+#endif
+
 static bool ListDirectory(const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files)
 {
 #ifdef WIN32
-	// TODO: implement me!
-	return false;
+	HANDLE h = INVALID_HANDLE_VALUE;
+	WIN32_FIND_DATAA ffd;
+	int r = 0;
+
+	std::string filter = path + "\\*";
+	h = FindFirstFileA(filter.c_str(),  &ffd);
+	if (h == INVALID_HANDLE_VALUE) {
+		gpxutil::warn("failed to open directory '%s'", path.c_str());
+		return false;
+	}
+	processDirectoryEntry(ffd, path, subdirs, files);
+	while (FindNextFileA(h, &ffd) != 0) {
+		processDirectoryEntry(ffd, path, subdirs, files);
+	}
+	FindClose(h);
+	return true;
 #else
 	DIR* d=opendir(path.c_str());
 	struct dirent *e;
