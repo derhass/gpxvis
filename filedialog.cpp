@@ -8,6 +8,8 @@
 #include <Windows.h>
 #include <string.h>
 #else
+//#define _POSIX_C_SOURCE 1
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -55,6 +57,18 @@ static std::string makePath(const std::string& path, const std::string& file)
 	result = result + std::string("/") + file;
 #endif
 	return result;
+}
+
+static std::string makeAbsolutePath(const std::string& path)
+{
+#ifdef WIN32
+	// TODO
+	return path;
+#else
+	char newPath[PATH_MAX];
+	realpath(path.c_str(), newPath);
+	return std::string(newPath);
+#endif
 }
 
 static bool extensionMatches(const std::string& file, const std::string& extension)
@@ -148,9 +162,10 @@ CFileDialogBase::CFileDialogBase() :
 
 bool CFileDialogBase::ChangeDir(const std::string& newPath)
 {
-	if (newPath != path) {
-		path = newPath;
-		pathDialog = newPath;
+	std::string targetPath = makeAbsolutePath(newPath);
+	if (targetPath != path) {
+		path = targetPath;
+		pathDialog = targetPath;
 		subdirs.clear();
 		files.clear();
 		file.clear();
