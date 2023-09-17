@@ -1128,10 +1128,20 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::Checkbox("render text labels into images", &withLabel);
 		ImGui::Checkbox("exit application when finished", &exitAfter);
 
-		if (ImGui::BeginTable("outputbuttonssplit", 2)) {
+		if (ImGui::BeginTable("outputbuttonssplit", 3)) {
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Render Animation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 				animCtrl.ResetAnimation();
+				if (forceFixedTimestep) {
+					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+				}
+				animCtrl.Play();
+				cfg.outputFrames = outputFilename;
+				cfg.exitAfterOutputFrames = exitAfter;
+				cfg.withGUI = withLabel;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Render From Here", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 				if (forceFixedTimestep) {
 					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
 				}
