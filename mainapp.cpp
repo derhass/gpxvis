@@ -1424,7 +1424,13 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
  * PROGRAM ENTRY POINT                                                      *
  ****************************************************************************/
 
-int main (int argc, char **argv)
+#ifdef WIN32
+#define REALMAIN main_utf8
+#else
+#define REALMAIN main
+#endif
+
+int REALMAIN (int argc, char **argv)
 {
 	AppConfig cfg;	/* the generic configuration */
 	MainApp app;	/* the cube application stata stucture */
@@ -1447,3 +1453,19 @@ int main (int argc, char **argv)
 	return 0;
 }
 
+#ifdef WIN32
+int wmain(int argc, wchar_t **argv)
+{
+	std::vector<std::string> args_utf8;
+	std::vector<char*> argv_utf8;
+	int i;
+
+	for (i = 0; i < argc; i++) {
+		args_utf8.push_back(gpxutil::wideToUtf8(std::wstring(argv[i])));
+	}
+	for (i = 0; i < argc; i++) {
+		argv_utf8.push_back((char*)args_utf8[i].c_str());
+	}
+	return REALMAIN(argc, argv_utf8.data());
+}
+#endif // WIN32

@@ -81,7 +81,13 @@ static void projectMercator(double lon, double lat, double& x, double&y)
 
 bool CTrack::Load(const char *filename)
 {
+#ifdef WIN32
+	std::wstring filename_wide = gpxutil::utf8ToWide(std::string(filename));
+	FILE *file = NULL;
+	_wfopen_s(&file, filename_wide.c_str(), L"rt");
+#else
 	FILE *file = fopen(filename, "rt");
+#endif
 	if(!file) {
 		gpxutil::warn("gpx file '%s' can't be opened", filename);
 		return false;

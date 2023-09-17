@@ -6,6 +6,7 @@
 
 /* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
 #ifdef WIN32
+#include <string>
 #define mysnprintf sprintf_s
 #else
 #define mysnprintf snprintf
@@ -162,6 +163,15 @@ extern GLsizei roundNextMultiple(GLsizei value, GLsizei base);
 
 /* get duration in human-readable string format */
 extern bool durationToString(double seconds, char *buffer, size_t bufSize);
+
+#ifdef WIN32
+/****************************************************************************
+ * WINDOWS WIDE STRING <-> UTF8                                             *
+ ****************************************************************************/
+
+extern std::string wideToUtf8(const std::wstring& data);
+extern std::wstring utf8ToWide(const std::string& data);
+#endif // WIN32
 
 } // namespace gpxutil
 #endif // GPXVIS_UTIL_H

@@ -62,7 +62,14 @@ static std::string makePath(const std::string& path, const std::string& file)
 static std::string makeAbsolutePath(const std::string& path)
 {
 #ifdef WIN32
-	// TODO
+	std::wstring path_wide = gpxutil::utf8ToWide(path);
+	std::wstring result;
+	result.resize(4096, 0);
+	DWORD res = GetFullPathNameW(path_wide.c_str(), (DWORD)result.size(), &result[0], NULL);
+	if (res > 0) {
+		result.resize(res);
+		return gpxutil::wideToUtf8(result);
+	}
 	return path;
 #else
 	char newPath[PATH_MAX];
@@ -88,9 +95,9 @@ static bool extensionMatches(const std::string& file, const std::string& extensi
 }
 
 #ifdef WIN32
-static void processDirectoryEntry(WIN32_FIND_DATAA& ffd, const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files)
+static void processDirectoryEntry(WIN32_FIND_DATAW& ffd, const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files)
 {
-	std::string name(ffd.cFileName);
+	std::string name(gpxutil::wideToUtf8(ffd.cFileName));
 	if (name == ".") {
 		return;
 	}
@@ -106,17 +113,17 @@ static bool ListDirectory(const std::string& path, std::vector<std::string>& sub
 {
 #ifdef WIN32
 	HANDLE h = INVALID_HANDLE_VALUE;
-	WIN32_FIND_DATAA ffd;
+	WIN32_FIND_DATAW ffd;
 	int r = 0;
 
-	std::string filter = path + "\\*";
-	h = FindFirstFileA(filter.c_str(),  &ffd);
+	std::wstring filter = gpxutil::utf8ToWide(path) + std::wstring(L"\\*");
+	h = FindFirstFileW(filter.c_str(),  &ffd);
 	if (h == INVALID_HANDLE_VALUE) {
 		gpxutil::warn("failed to open directory '%s'", path.c_str());
 		return false;
 	}
 	processDirectoryEntry(ffd, path, subdirs, files);
-	while (FindNextFileA(h, &ffd) != 0) {
+	while (FindNextFileW(h, &ffd) != 0) {
 		processDirectoryEntry(ffd, path, subdirs, files);
 	}
 	FindClose(h);

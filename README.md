@@ -5,9 +5,8 @@ may find it useful.
 
 ## Caveats:
 
-* gpx file selection is done via command line, the GUI track manager can add only single files, without any file dialog
 * gpx reading doesn't use an XML parser, it just collects the value out of the raw text, works well enough with real world files, but may break with yours
-* only Linux Makefile is provided, building on other platforms should work without much hassle, but I don't care much
+* Linux Makefile is provided, building on other platforms should work without much hassle, but I don't care much
   * A VisualStudio project file for Windows builds is included, you have to manually download the GLFW binaries (or bild them yourself). By default, it uses the `GLFW\include` subdirectory for the headers, and `GLFW\lib-vc2017` for the libraries (for both 32bit and 64bit builds, choose just the one you need), you may want to modify the project settings for your liking. And no, I will not provide CMake project files.
 * probably a lot more...
 

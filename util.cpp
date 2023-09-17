@@ -5,6 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef WIN32
+#include <Windows.h>
+#endif
+
 namespace gpxutil {
 
 /****************************************************************************
@@ -477,5 +481,39 @@ bool durationToString(double seconds, char *buffer, size_t bufSize)
 	buffer[bufSize-1] = 0;
 	return true;
 }
+
+#ifdef WIN32
+/****************************************************************************
+ * WINDOWS WIDE STRING <-> UTF8                                             *
+ ****************************************************************************/
+
+extern std::string wideToUtf8(const std::wstring& data)
+{
+	std::string result;
+	if (data.length() > 0) {
+		int len = WideCharToMultiByte(CP_UTF8, 0, data.c_str(), (int)data.length(), NULL, 0, NULL, NULL);
+		if (len > 0) {
+			result.resize(len);
+			WideCharToMultiByte(CP_UTF8, 0, data.c_str(), (int)data.length(), &result[0], len, NULL, NULL);
+		}
+	}
+	return result;
+}
+
+extern std::wstring utf8ToWide(const std::string& data)
+{
+	std::wstring result;
+	if (data.length() > 0) {
+		int len = MultiByteToWideChar(CP_UTF8, 0, data.c_str(), (int)data.length(), NULL, 0);
+		if (len > 0) {
+			result.resize(len);
+			MultiByteToWideChar(CP_UTF8, 0, data.c_str(), (int)data.length(), &result[0], len);
+		}
+	}
+	return result;
+}
+
+#endif // WIN32
+
 
 } // namespace gpxutil
