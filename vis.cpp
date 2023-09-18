@@ -1088,11 +1088,28 @@ void CAnimController::ResetFrameCounter()
 	curFrame=0;
 }
 
-void CAnimController::SortTracks(TSortMode sortMode)
+bool CAnimController::RestoreCurrentTrack(size_t curId)
+{
+	bool found = false;
+	size_t cnt = tracks.size();
+	for (size_t i=0; i<cnt; i++) {
+		if (tracks[i].GetIntenalID() == curId) {
+			curTrack = i;
+			found = true;
+			break;
+		}
+	}
+	if (!found) {
+		SwitchToTrack(0);
+	}
+	return found;
+}
+
+bool CAnimController::SortTracks(TSortMode sortMode)
 {
 	size_t cnt = tracks.size();
 	if (cnt < 2) {
-		return;
+		return true;
 	}
 	size_t curId = (curTrack < cnt) ? tracks[curTrack].GetIntenalID() : 0;
 	switch (sortMode) {
@@ -1108,17 +1125,54 @@ void CAnimController::SortTracks(TSortMode sortMode)
 		default:
 			std::sort(tracks.begin(),tracks.end(), gpx::EarlierFilenameThan);
 	}
-	bool found = false;
+	return RestoreCurrentTrack(curId);
+}
+
+bool CAnimController::ReverseTrackOrder()
+{
+	size_t cnt = tracks.size();
+	if (cnt < 2) {
+		return true;
+	}
+	size_t curId = (curTrack < cnt) ? tracks[curTrack].GetIntenalID() : 0;
+	for (size_t i=0; i < (cnt>>1); i++) {
+		std::swap(tracks[i], tracks[cnt-1-i]);
+	}
+	return RestoreCurrentTrack(curId);
+}
+
+bool CAnimController::RemoveDuplicateTracks()
+{
+	const size_t cnt = tracks.size();
+	size_t newCnt = 0;
+
+	if (cnt < 2) {
+		return true;
+	}
+
+	size_t curId = (curTrack < cnt) ? tracks[curTrack].GetIntenalID() : 0;
 	for (size_t i=0; i<cnt; i++) {
-		if (tracks[i].GetIntenalID() == curId) {
-			curTrack = i;
-			found = true;
-			break;
+		const gpx::CTrack &t = tracks[i];
+		bool keep = true;
+		for (size_t j=0; j<i; j++) {
+			if (IsEqual(t, tracks[j])) {
+				keep = false;
+				gpxutil::warn("'%s' is duplicate of '%s', removed", t.GetInfo(), tracks[j].GetInfo());
+				break;
+			}
 		}
+		if (keep) {
+			if (newCnt < i) {
+				tracks[newCnt] = tracks[i];
+			}
+			newCnt++;
+		} else {
+		}	
 	}
-	if (!found) {
-		SwitchToTrack(0);
+	if (newCnt < cnt) {
+		tracks.resize(newCnt);
 	}
+	return RestoreCurrentTrack(curId);
 }
 
 } // namespace gpxvis

@@ -401,5 +401,23 @@ bool ShorterDistanceThan(const CTrack& a, const CTrack& b)
 	return (a.GetLength() < b.GetLength());
 }
 
+bool IsEqual(const TPoint& a, const TPoint& b)
+{
+	return (a.lon == b.lon && a.lat == b.lat && a.timestamp == b.timestamp);
+}
+
+bool IsEqual(const CTrack& a, const CTrack& b)
+{
+	if (a.points.size() != b.points.size()) {
+		return false;
+	}
+	for (size_t i=0; i<a.points.size(); i++) {
+		if (!IsEqual(a.points[i], b.points[i])) {
+			return false;
+		}
+	}
+	return true;
+}
+
 } // namespace gpx
 

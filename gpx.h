@@ -65,12 +65,16 @@ class CTrack {
 		std::string fullFilename;
 		std::string info;
 		std::string durationStr;
+
+		friend bool IsEqual(const CTrack& a, const CTrack& b);
 };
 
 bool EarlierThan(const CTrack& a, const CTrack& b);
 bool EarlierFilenameThan(const CTrack& a, const CTrack& b);
 bool ShorterDurationThan(const CTrack& a, const CTrack& b);
 bool ShorterDistanceThan(const CTrack& a, const CTrack& b);
+bool IsEqual(const TPoint& a, const TPoint& b);
+bool IsEqual(const CTrack& a, const CTrack& b);
 
 } // namespace gpx
 

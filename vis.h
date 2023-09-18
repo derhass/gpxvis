@@ -211,7 +211,10 @@ class CAnimController {
 			BY_DURATION,
 		} TSortMode;
 
-		void SortTracks(TSortMode sortMode = BY_TIME);
+		bool SortTracks(TSortMode sortMode = BY_TIME);
+		bool ReverseTrackOrder();
+		bool RemoveDuplicateTracks();
+
 	private:
 		typedef enum {
 			PHASE_INIT,
@@ -251,6 +254,7 @@ class CAnimController {
 		gpxutil::CInternalIDGenerator<size_t> trackIDManager;
 
 		void   UpdateTrack(size_t idx);
+		bool   RestoreCurrentTrack(size_t curId);
 
 		double GetAnimationTimeDelta(double deltaTime) const;
 		float  GetTrackAnimation(TPhase& nextPhase);

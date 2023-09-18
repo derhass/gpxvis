@@ -609,7 +609,7 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		ImGui::EndTable();
 	}
 	ImGui::EndDisabled();
-	if (ImGui::BeginTable("managerpertracksplit2", 2)) {
+	if (ImGui::BeginTable("managerpertracksplit2", 4)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Remove all Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			tracks.clear();
@@ -625,6 +625,14 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 				curIdx = 0;
 				modified = true;
 			}
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Remove Duplicates", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			modified = !animCtrl.RemoveDuplicateTracks();
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Reverse Order", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			modified = !animCtrl.ReverseTrackOrder();
 		}
 		ImGui::EndTable();
 	}
