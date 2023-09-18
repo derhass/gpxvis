@@ -1083,6 +1083,11 @@ void CAnimController::ResetAnimation()
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
 
+void CAnimController::ResetFrameCounter()
+{
+	curFrame=0;
+}
+
 void CAnimController::SortTracks(TSortMode sortMode)
 {
 	size_t cnt = tracks.size();

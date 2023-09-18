@@ -195,6 +195,7 @@ class CAnimController {
 		void RestoreHistory(bool history=true, bool neighborhood=true);
 		void RestoreHistoryUpTo(size_t idx, bool history=true, bool neighborhood=true);
 		void ResetAnimation();
+		void ResetFrameCounter();
 
 		float GetCurrentFadeRatio() const {return curFadeRatio;}
 		void SetCurrentFadeRatio(float v) {curFadeRatio = v; curFadeTime = curFadeRatio * animCfg.fadeoutTime; }

@@ -1142,6 +1142,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			}
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Render From Here", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCtrl.ResetFrameCounter();
 				if (forceFixedTimestep) {
 					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
 				}
