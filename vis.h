@@ -72,11 +72,14 @@ class CVis {
 		GLuint  GetImageFBO() const {return fbo[FB_FINAL];}
 		bool	GetImage(gpximg::CImg& img) const;
 
+		const TConfig& GetConfig() const {return cfg;} // only for reading
 		TConfig& GetConfig() {return cfg;} // use UpdateConfig and/or UpdateTransform after you modified something!
 		void UpdateConfig();
 		void UpdateTransform();
 
 		float  GetDataAspect() const {return dataAspect;}
+		void GetZoomShift(GLfloat zoomShift[4]) const;
+		void TransformToPos(const GLfloat posNormalized[2], GLfloat pos[2]) const;
 
 	private:
 		typedef enum {

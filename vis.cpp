@@ -268,10 +268,7 @@ bool CVis::InitializeUBO(int i)
 			transformParam.size[1] = (GLfloat)height;
 			transformParam.size[2] = 1.0f/transformParam.size[0];
 			transformParam.size[3] = 1.0f/transformParam.size[1];
-			transformParam.zoomShift[0] = cfg.zoomFactor;
-			transformParam.zoomShift[1] = cfg.zoomFactor;
-			transformParam.zoomShift[2] = 0.5f - cfg.zoomFactor * cfg.centerNormalized[0];
-			transformParam.zoomShift[3] = 0.5f - cfg.zoomFactor * cfg.centerNormalized[1];
+			GetZoomShift(transformParam.zoomShift);
 			break;
 		case UBO_LINE_TRACK:
 		case UBO_LINE_HISTORY:
@@ -591,6 +588,22 @@ void CVis::UpdateConfig()
 void CVis::UpdateTransform()
 {
 	InitializeUBO(UBO_TRANSFORM);
+}
+
+void CVis::GetZoomShift(GLfloat zoomShift[4]) const
+{
+	zoomShift[0] = cfg.zoomFactor;
+	zoomShift[1] = cfg.zoomFactor;
+	zoomShift[2] = 0.5f - cfg.zoomFactor * cfg.centerNormalized[0];
+	zoomShift[3] = 0.5f - cfg.zoomFactor * cfg.centerNormalized[1];
+}
+
+void CVis::TransformToPos(const GLfloat posNormalized[2], GLfloat pos[2]) const
+{
+	GLfloat zoomShift[4];
+	GetZoomShift(zoomShift);
+	pos[0] = (posNormalized[0] - zoomShift[2]) / zoomShift[0];
+	pos[1] = (posNormalized[1] - zoomShift[3]) / zoomShift[1];
 }
 
 /****************************************************************************

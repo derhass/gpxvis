@@ -82,6 +82,8 @@ typedef struct {
 	GLFWwindow *win;
 	AppConfig* cfg;
 	int width, height;
+	int winWidth, winHeight;
+	double winToPixel[2];
 	unsigned int flags;
 
 	/* timing */
@@ -89,6 +91,16 @@ typedef struct {
 	double avg_frametime;
 	double avg_fps;
 	unsigned int frame;
+
+	/* position of the main framebuffer in the final framebuffer */
+	GLsizei mainWidth;
+	GLsizei mainHeight;
+	GLsizei mainWidthOffset;
+	GLsizei mainHeightOffset;
+
+	/* input state */
+	double mousePosWin[2];
+	GLfloat mousePosMain[2];
 
 	// some gl limits
 	int maxGlTextureSize;
@@ -208,6 +220,56 @@ static void initGLState(MainApp* app, const AppConfig& cfg)
 }
 
 /****************************************************************************
+ * coordinate space transformations and setups                              *
+ ****************************************************************************/
+
+/* calculate the position of the main framebuffer in the final window framebuffer */
+static void updateMainFramebufferCoords(MainApp* app)
+{
+	const gpxvis::CAnimController& animCtrl = app->animCtrl;
+	const gpxvis::CVis& vis = animCtrl.GetVis();
+
+	GLsizei w = vis.GetWidth();
+	GLsizei h = vis.GetHeight();
+
+	app->mainWidthOffset=0;
+	app->mainHeightOffset=0;
+	app->mainWidth = app->width;
+	app->mainHeight = app->height;
+
+	if (animCtrl.IsPrepared()) {
+		float winAspect = (float)app->width / (float)app->height;
+		float imgAspect = (float)w/(float)h;
+		if (winAspect > imgAspect) {
+			float scale = (float)app->height / (float)h;
+			app->mainWidth = (GLsizei)(scale * w + 0.5f);
+			app->mainWidthOffset = (app->width - app->mainWidth);
+		} else {
+			float scale = (float)app->width / (float)w;
+			app->mainHeight = (GLsizei)(scale * h + 0.5f);
+			app->mainHeightOffset = (app->height- app->mainHeight) / 2;
+		}
+	}
+}
+
+/* transform a window coordinate into the default framebuffer coord of the window */
+static void windowToMainFramebufferNormalized(const MainApp* app, const double pWin[2], GLfloat pos[2])
+{
+	const gpxvis::CVis& vis = app->animCtrl.GetVis();
+
+	/* transform to default framebuffer */
+	pos[0] = (GLfloat)(pWin[0] * app->winToPixel[0]);
+	pos[1] = (GLfloat)(((double)app->height - 1.0 - pWin[1]) * app->winToPixel[1]);
+
+	/* transform to main framebuffer */
+	pos[0] = (pos[0] - (GLfloat) app->mainWidthOffset)  / (GLfloat)app->mainWidth;
+	pos[1] = (pos[1] - (GLfloat) app->mainHeightOffset) / (GLfloat)app->mainHeight;
+
+	/* transform to actual position considering the current transformation */
+	vis.TransformToPos(pos, pos);
+}
+
+/****************************************************************************
  * scene transformation                                                     *
  ****************************************************************************/
 
@@ -270,7 +332,23 @@ static void callback_Resize(GLFWwindow *win, int w, int h)
 	app->width=w;
 	app->height=h;
 
-	/* we _could_ directly set the viewport here ... */
+	app->winToPixel[0] = (double)app->width  / (double)app->winWidth;
+	app->winToPixel[1] = (double)app->height / (double)app->winHeight;
+}
+
+/* This function is registered as the window size callback for GLFW,
+ * so GLFW will call this whenever the window is resized. */
+static void callback_WinResize(GLFWwindow *win, int w, int h)
+{
+	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
+	gpxutil::info("new window size: %dx%d units",w,h);
+
+	/* store curent size for later use in the main loop */
+	app->winWidth=w;
+	app->winHeight=h;
+
+	app->winToPixel[0] = (double)app->width  / (double)app->winWidth;
+	app->winToPixel[1] = (double)app->height / (double)app->winHeight;
 }
 
 /* This function is registered as the keayboard callback for GLFW, so GLFW
@@ -299,7 +377,7 @@ static void callback_Keyboard(GLFWwindow *win, int key, int scancode, int action
 }
 
 /* registered scroll wheel callback */
-void callback_scroll(GLFWwindow *win, double x, double y)
+static void callback_scroll(GLFWwindow *win, double x, double y)
 {
 	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
 	if (isOurInput(app, true)) {
@@ -308,6 +386,16 @@ void callback_scroll(GLFWwindow *win, double x, double y)
 		} else if ( y < -0.1) {
 			doZoom(app, (float)(-1.0 / (sqrt(2.0) * y)), 0.0f);
 		}
+	}
+}
+
+/* called by mainLoop(): process further inputs */
+static void processInputs(MainApp *app)
+{
+	glfwGetCursorPos(app->win, &app->mousePosWin[0], &app->mousePosWin[1]);
+	windowToMainFramebufferNormalized(app, app->mousePosWin, app->mousePosMain);
+	if (!isOurInput(app, true)) {
+		return;
 	}
 }
 
@@ -389,6 +477,18 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 
 	app->width = w;
 	app->height = h;
+	app->winWidth = w;
+	app->winHeight = h;
+	app->winToPixel[0] = 1.0;
+	app->winToPixel[1] = 1.0;
+	app->mainWidth = w;
+	app->mainHeight = h;
+	app->mainWidthOffset = 0;
+	app->mainHeightOffset = 0;
+	app->mousePosWin[0] = 0.0;
+	app->mousePosWin[1] = 0.0;
+	app->mousePosMain[0] = 0.0;
+	app->mousePosMain[1] = 1.0;
 
 	if (!monitor) {
 		glfwSetWindowPos(app->win, x, y);
@@ -399,6 +499,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	glfwSetWindowUserPointer(app->win, app);
 	/* register our callbacks */
 	glfwSetFramebufferSizeCallback(app->win, callback_Resize);
+	glfwSetWindowSizeCallback(app->win, callback_WinResize);
 	glfwSetKeyCallback(app->win, callback_Keyboard);
 	glfwSetScrollCallback(app->win, callback_scroll);
 
@@ -833,6 +934,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndTable();
 	}
 	if (ImGui::TreeNodeEx("View Transformation", 0)) {
+		ImGui::Text("mouse position (normalized): (%f %f)", app->mousePosMain[0], app->mousePosMain[1]);
 		ImGui::BeginDisabled(disabled);
 		if (ImGui::SliderFloat("zoom factor", &visCfg.zoomFactor, 0.01f, 100.0f, "%.02fx", ImGuiSliderFlags_Logarithmic)) {
 			modifiedHistory = true;
@@ -877,7 +979,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndDisabled();
 		ImGui::TreePop();
 	}
-	if (ImGui::TreeNodeEx("Histroy Maniupulation", 0)) {
+	if (ImGui::TreeNodeEx("Histroy Manipulation", 0)) {
 		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Manipulate History and Neighborhood");
 		if (ImGui::BeginTable("histcontrolsplit1", 5)) {
@@ -1322,9 +1424,7 @@ drawScene(MainApp *app, AppConfig& cfg)
 {
 	gpxvis::CAnimController& animCtrl = app->animCtrl;
 	gpxvis::CVis& vis = animCtrl.GetVis();
-
-	GLsizei w = vis.GetWidth();
-	GLsizei h = vis.GetHeight();
+	const gpxvis::CVis::TConfig visCfg = vis.GetConfig();
 
 #ifdef GPXVIS_WITH_IMGUI
 	if ((app->flags & APP_HAVE_IMGUI ) && cfg.outputFrames && cfg.withGUI && animCtrl.IsPrepared()) {
@@ -1353,30 +1453,12 @@ drawScene(MainApp *app, AppConfig& cfg)
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	glViewport(0, 0, app->width, app->height);
 
-	const gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
 	glClearColor(visCfg.colorBackground[0], visCfg.colorBackground[1], visCfg.colorBackground[2], visCfg.colorBackground[3]);
 	glClear(GL_COLOR_BUFFER_BIT); /* clear the buffers */
 
-	GLsizei widthOffset=0;
-	GLsizei heightOffset=0;
-	GLsizei newWidth = app->width;
-	GLsizei newHeight = app->height;
-
 	if (animCtrl.IsPrepared()) {
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, vis.GetImageFBO());
-
-		float winAspect = (float)app->width / (float)app->height;
-		float imgAspect = (float)w/(float)h;
-		if (winAspect > imgAspect) {
-			float scale = (float)app->height / (float)h;
-			newWidth = (GLsizei)(scale * w + 0.5f);
-			widthOffset = (app->width - newWidth);
-		} else {
-			float scale = (float)app->width / (float)w;
-			newHeight = (GLsizei)(scale * h + 0.5f);
-			heightOffset = (app->height- newHeight) / 2;
-		}
-		glBlitFramebuffer(0,0,w,h, widthOffset,heightOffset, widthOffset+newWidth, heightOffset+newHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		glBlitFramebuffer(0,0, vis.GetWidth(), vis.GetHeight(), app->mainWidthOffset, app->mainHeightOffset, app->mainWidthOffset + app->mainWidth, app->mainHeightOffset + app->mainHeight, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
@@ -1464,6 +1546,17 @@ static void mainLoop(MainApp *app, AppConfig& cfg)
 			gpxutil::info("frame time: %4.2fms/frame (%.1ffps)",app->avg_frametime, app->avg_fps);
 		}
 
+		/* This is needed for GLFW event handling. This function
+		 * will call the registered callback functions to forward
+		 * the events to us. */
+		glfwPollEvents();
+
+		/* calculate position of the main framebuffer */
+		updateMainFramebufferCoords(app);
+
+		/* process further inputs */
+		processInputs(app);
+
 		/* call the display function */
 		if (!displayFunc(app, cfg)) {
 			break;
@@ -1473,10 +1566,6 @@ static void mainLoop(MainApp *app, AppConfig& cfg)
 		if (cfg.frameCount && app->frame >= cfg.frameCount) {
 			break;
 		}
-		/* This is needed for GLFW event handling. This function
-		 * will call the registered callback functions to forward
-		 * the events to us. */
-		glfwPollEvents();
 	}
 	gpxutil::info("left main loop\n%u frames rendered in %.1fs seconds == %.1ffps",
 		app->frame,(app->timeCur-start_time),
