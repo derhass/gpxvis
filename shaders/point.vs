@@ -9,6 +9,7 @@ layout(std140, binding=0) uniform transformParamUBO
 {
 	vec4 scale_offset;
 	vec4 size;
+	vec4 zoomShift;
 } transformParam;
 
 layout(std140, binding=1) uniform lineParamUBO
@@ -32,7 +33,7 @@ void main()
 	vec2 line[2] = vec2[2](points.point[min(idx,maxIdx)],points.point[min(idx+1,maxIdx)]);
 	int vertexIdx = gl_VertexID % 6;
 	vec2 vertices[6]=vec2[6](vec2(-1,-1), vec2(1,-1), vec2(1, 1), vec2(-1,-1), vec2(1,1), vec2(-1,1));
-	vec2 point = mix(line[0], line[1], fract(upTo));
+	vec2 point = transformParam.zoomShift.xy * mix(line[0], line[1], fract(upTo)) + transformParam.zoomShift.zw;
 
 	vec2 vertex = vertices[vertexIdx];
 	lineCoord = vertex;

@@ -208,8 +208,56 @@ static void initGLState(MainApp* app, const AppConfig& cfg)
 }
 
 /****************************************************************************
+ * scene transformation                                                     *
+ ****************************************************************************/
+
+/* update the transformations */
+static void transformUpdate(MainApp* app, gpxvis::CAnimController& animCtrl, gpxvis::CVis& vis)
+{
+	(void)app;
+	vis.UpdateTransform();
+	animCtrl.RestoreHistory(true, true);
+	animCtrl.RefreshCurrentTrack(true);
+}
+
+/* change the zoom factor */
+static void doZoom(MainApp* app, float factor, float offset)
+{
+	gpxvis::CAnimController& animCtrl = app->animCtrl;
+	gpxvis::CVis& vis = animCtrl.GetVis();
+	gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
+	visCfg.zoomFactor = factor * visCfg.zoomFactor + offset;
+	if ( visCfg.zoomFactor > 0.99f && visCfg.zoomFactor < 1.01f) {
+		visCfg.zoomFactor = 1.0f;
+	}
+	transformUpdate(app, animCtrl, vis);
+}
+
+/****************************************************************************
  * WINDOW-RELATED CALLBACKS                                                 *
  ****************************************************************************/
+
+static bool isOurInput(MainApp *app, bool mouse)
+{
+	bool inputAllowed = (app->cfg->outputFrames == NULL);
+
+#ifdef GPXVIS_WITH_IMGUI
+	if (app->cfg->withGUI) {
+		ImGuiIO& io = ImGui::GetIO();
+		if (mouse) {
+			if (io.WantCaptureMouse) {
+				inputAllowed = false;
+			}
+		} else {
+			if (io.WantCaptureKeyboard) {
+				inputAllowed = false;
+			}
+		}
+	}
+#endif
+	return inputAllowed;
+}
+
 
 /* This function is registered as the framebuffer size callback for GLFW,
  * so GLFW will call this whenever the window is resized. */
@@ -230,24 +278,37 @@ static void callback_Resize(GLFWwindow *win, int w, int h)
 static void callback_Keyboard(GLFWwindow *win, int key, int scancode, int action, int mods)
 {
 	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
-	AppConfig *cfg = app->cfg;
-
-	if (action == GLFW_PRESS) {
-		switch(key) {
-			case GLFW_KEY_ESCAPE:
-				glfwSetWindowShouldClose(win, 1);
-				break;
-		}
-		if (!cfg->outputFrames) {
-			gpxvis::CAnimController::TAnimConfig& animCfg = app->animCtrl.GetAnimConfig();
+	if (isOurInput(app, false)) {
+		AppConfig *cfg = app->cfg;
+		if (action == GLFW_PRESS) {
 			switch(key) {
-				case GLFW_KEY_SPACE:
-					animCfg.paused = !animCfg.paused;
+				case GLFW_KEY_ESCAPE:
+					glfwSetWindowShouldClose(win, 1);
 					break;
+			}
+			if (!cfg->outputFrames) {
+				gpxvis::CAnimController::TAnimConfig& animCfg = app->animCtrl.GetAnimConfig();
+				switch(key) {
+					case GLFW_KEY_SPACE:
+						animCfg.paused = !animCfg.paused;
+						break;
+				}
 			}
 		}
 	}
+}
 
+/* registered scroll wheel callback */
+void callback_scroll(GLFWwindow *win, double x, double y)
+{
+	MainApp *app=(MainApp*)glfwGetWindowUserPointer(win);
+	if (isOurInput(app, true)) {
+		if (y > 0.1) {
+			doZoom(app, (float)(y * sqrt(2.0)), 0.0f);
+		} else if ( y < -0.1) {
+			doZoom(app, (float)(-1.0 / (sqrt(2.0) * y)), 0.0f);
+		}
+	}
 }
 
 /****************************************************************************
@@ -339,6 +400,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	/* register our callbacks */
 	glfwSetFramebufferSizeCallback(app->win, callback_Resize);
 	glfwSetKeyCallback(app->win, callback_Keyboard);
+	glfwSetScrollCallback(app->win, callback_scroll);
 
 	/* make the context the current context (of the current thread) */
 	glfwMakeContextCurrent(app->win);
@@ -664,6 +726,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 {
 	bool modified = false;
 	bool modifiedHistory = false;
+	bool modifiedTransform = false;
 	static bool first  = true;
 	static char outputFilename[256];
 	static bool showTrackManager = false;
@@ -697,6 +760,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 
 
 	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
+	gpxvis::CVis::TConfig& visCfg=vis.GetConfig();
 	ImGui::BeginDisabled(disabled);
 	if (ImGui::BeginTable("tracksplit", 3)) {
 		ImGui::TableNextColumn();
@@ -767,6 +831,22 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::TableNextColumn();
 		ImGui::Text("Dur: %s", curTrack->GetDurationString());
 		ImGui::EndTable();
+	}
+	if (ImGui::TreeNodeEx("View Transformation", 0)) {
+		ImGui::BeginDisabled(disabled);
+		if (ImGui::SliderFloat("zoom factor", &visCfg.zoomFactor, 0.01f, 100.0f, "%.02fx", ImGuiSliderFlags_Logarithmic)) {
+			modifiedHistory = true;
+			modifiedTransform = true;
+			modified = true;
+		}
+		if (ImGui::Button("Reset View Transformation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			visCfg.ResetTransform();
+			modifiedHistory = true;
+			modifiedTransform = true;
+			modified = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
 	}
 	if (ImGui::TreeNodeEx("Histroy Maniupulation", 0)) {
 		ImGui::BeginDisabled(disabled);
@@ -995,7 +1075,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (ImGui::TreeNodeEx("Visualization Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::BeginDisabled(disabled);
 		ImGui::SeparatorText("Track Colors");
-		gpxvis::CVis::TConfig& visCfg=vis.GetConfig();
 		int historyLineMode = (int)(visCfg.historyWideLine);
 		if (ImGui::ColorEdit3("track history", visCfg.colorBase)) {
 			modified = true;
@@ -1171,15 +1250,18 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	}
 	ImGui::End();
 
+	if (modifiedTransform) {
+		vis.UpdateTransform();
+	}
 	if (modified) {
 		vis.UpdateConfig();
 	}
 	if (modifiedHistory) {
-		size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
-		animCtrl.RestoreHistory(curTrackIdx);
+		//size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
+		animCtrl.RestoreHistory();
 	}
 	if (modified) {
-		animCtrl.RefreshCurrentTrack();
+		animCtrl.RefreshCurrentTrack(modifiedHistory);
 	}
 
 	if (showTrackManager) {

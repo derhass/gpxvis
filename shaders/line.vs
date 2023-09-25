@@ -9,6 +9,7 @@ layout(std140, binding=0) uniform transformParamUBO
 {
 	vec4 scale_offset;
 	vec4 size;
+	vec4 zoomShift;
 } transformParam;
 
 layout(std140, binding=1) uniform lineParamUBO
@@ -47,7 +48,7 @@ void main()
 	vec2 vertex = vertices[vertexIdx];
 
 	int side = (vertex.x < 0.0) ? 0 : 1;
-	vec2 basePoint = line[selector[side]];
+	vec2 basePoint = transformParam.zoomShift.xy * line[selector[side]] + transformParam.zoomShift.zw;
 	if (segmentIdx == selector[0] && side == (1-selector[0])) {
 		vertex.x = 0.0;
 	} else {
@@ -60,6 +61,4 @@ void main()
 	basePoint = basePoint + vertex.x * t + vertex.y * n;
 
 	gl_Position = vec4(transformParam.scale_offset.xy * basePoint + transformParam.scale_offset.zw, 0, 1);
-
-
 }

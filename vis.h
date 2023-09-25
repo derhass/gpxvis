@@ -28,6 +28,7 @@ class CVis {
 			GLfloat historyExp;
 			GLfloat neighborhoodWidth;
 			GLfloat neighborhoodExp;
+			GLfloat zoomFactor;
 			bool historyWideLine;
 			bool historyAdditive;
 
@@ -35,6 +36,7 @@ class CVis {
 			void Reset();
 			void ResetColors();
 			void ResetWidths();
+			void ResetTransform();
 		};
 
 		CVis();
@@ -69,8 +71,9 @@ class CVis {
 		GLuint  GetImageFBO() const {return fbo[FB_FINAL];}
 		bool	GetImage(gpximg::CImg& img) const;
 
-		TConfig& GetConfig() {return cfg;} // use UpdateConfig after you modified something!
+		TConfig& GetConfig() {return cfg;} // use UpdateConfig and/or UpdateTransform after you modified something!
 		void UpdateConfig();
+		void UpdateTransform();
 
 		float  GetDataAspect() const {return dataAspect;}
 
@@ -187,7 +190,7 @@ class CAnimController {
 		float GetCurrentTrackUpTo() const {return curTrackUpTo;}
 		void SetCurrentTrackPos(double v);
 		void SetCurrentTrackUpTo(float v);
-		void RefreshCurrentTrack();
+		void RefreshCurrentTrack(bool needRestoreHistory=false);
 		void ChangeTrack(int delta);
 		void SwitchToTrack(size_t idx);
 		std::vector<gpx::CTrack>& GetTracks() {return tracks;} // call Prepare after you modified these...

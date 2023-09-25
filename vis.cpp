@@ -16,6 +16,7 @@ namespace ubo {
 struct transformParam {
 	GLfloat scale_offset[4];
 	GLfloat size[4];
+	GLfloat zoomShift[4];
 };
 
 struct lineParam {
@@ -42,6 +43,7 @@ void CVis::TConfig::Reset()
 {
 	ResetColors();
 	ResetWidths();
+	ResetTransform();
 }
 
 void CVis::TConfig::ResetColors()
@@ -89,6 +91,11 @@ void CVis::TConfig::ResetWidths()
 	neighborhoodExp = 1.0f;
 	historyWideLine = false;
 	historyAdditive = false;
+}
+
+void CVis::TConfig::ResetTransform()
+{
+	zoomFactor = 1.0f;
 }
 
 CVis::CVis() :
@@ -216,14 +223,13 @@ bool CVis::InitializeUBO(int i)
 {
 	GLsizeiptr size=0;
 	void *ptr = NULL;
+	bool created = false;
 
-	if (ubo[i]) {
-		gpxutil::info("destroying buffer %u (UBO idx %d)", ubo[i], i);
-		glDeleteBuffers(1, &ubo[i]);
-		ubo[i] = 0;
+	if (!ubo[i]) {
+		created = true;
+		glGenBuffers(1, &ubo[i]);
 	}
 
-	glGenBuffers(1, &ubo[i]);
 	glBindBuffer(GL_UNIFORM_BUFFER, ubo[i]);
 
 	ubo::transformParam transformParam;
@@ -260,6 +266,10 @@ bool CVis::InitializeUBO(int i)
 			transformParam.size[1] = (GLfloat)height;
 			transformParam.size[2] = 1.0f/transformParam.size[0];
 			transformParam.size[3] = 1.0f/transformParam.size[1];
+			transformParam.zoomShift[0] = cfg.zoomFactor;
+			transformParam.zoomShift[1] = cfg.zoomFactor;
+			transformParam.zoomShift[2] = 0.5f - cfg.zoomFactor * 0.5f;
+			transformParam.zoomShift[3] = 0.5f - cfg.zoomFactor * 0.5f;
 			break;
 		case UBO_LINE_TRACK:
 		case UBO_LINE_HISTORY:
@@ -303,9 +313,14 @@ bool CVis::InitializeUBO(int i)
 			gpxutil::warn("invalid UBO idx %d", i);
 			return false;
 	}
-	glBufferStorage(GL_UNIFORM_BUFFER, size, ptr, 0);
+	if (created) {
+		glBufferStorage(GL_UNIFORM_BUFFER, size, ptr, GL_DYNAMIC_STORAGE_BIT);
+		gpxutil::info("created buffer %u (UBO idx %d) size %u", ubo[i], i, (unsigned)size);
+	} else {
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, size, ptr);
+		gpxutil::info("updated buffer %u (UBO idx %d) size %u", ubo[i], i, (unsigned)size);
+	}
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-	gpxutil::info("created buffer %u (UBO idx %d) size %u", ubo[i], i, (unsigned)size);
 	return true;
 }
 
@@ -569,6 +584,11 @@ void CVis::UpdateConfig()
 	InitializeUBO(UBO_LINE_TRACK);
 	InitializeUBO(UBO_LINE_HISTORY);
 	InitializeUBO(UBO_LINE_NEIGHBORHOOD);
+}
+
+void CVis::UpdateTransform()
+{
+	InitializeUBO(UBO_TRANSFORM);
 }
 
 /****************************************************************************
@@ -1066,10 +1086,15 @@ void CAnimController::SetCurrentTrackUpTo(float v)
 	RefreshCurrentTrack();
 }
 
-void CAnimController::RefreshCurrentTrack()
+void CAnimController::RefreshCurrentTrack(bool needRestoreHistory)
 {
 	if (curPhase != PHASE_TRACK) {
 		vis.DrawTrack(curTrackUpTo);
+		if (needRestoreHistory && (curPhase >= PHASE_FADEOUT)) {
+			if (animCfg.historyMode == BACKGROUND_UPTO) {
+				vis.AddLineToBackground();
+			}
+		}
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 	}
 }
