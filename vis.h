@@ -29,6 +29,7 @@ class CVis {
 			GLfloat neighborhoodWidth;
 			GLfloat neighborhoodExp;
 			GLfloat zoomFactor;
+			GLfloat centerNormalized[2];
 			bool historyWideLine;
 			bool historyAdditive;
 

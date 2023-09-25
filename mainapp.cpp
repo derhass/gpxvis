@@ -839,11 +839,40 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			modifiedTransform = true;
 			modified = true;
 		}
-		if (ImGui::Button("Reset View Transformation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			visCfg.ResetTransform();
+		if (ImGui::SliderFloat("position x", &visCfg.centerNormalized[0], 0.0f, 1.0f, "%.03f")) {
 			modifiedHistory = true;
 			modifiedTransform = true;
 			modified = true;
+		}
+		if (ImGui::SliderFloat("position y", &visCfg.centerNormalized[1], 0.0f, 1.0f, "%.03f")) {
+			modifiedHistory = true;
+			modifiedTransform = true;
+			modified = true;
+		}
+		if (ImGui::BeginTable("viewtransformsplit1", 3)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Reset Zoom", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				visCfg.zoomFactor = 1.0f;
+				modifiedHistory = true;
+				modifiedTransform = true;
+				modified = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Reset Position", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				visCfg.centerNormalized[0] = 0.5f;
+				visCfg.centerNormalized[1] = 0.5f;
+				modifiedHistory = true;
+				modifiedTransform = true;
+				modified = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Reset View", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				visCfg.ResetTransform();
+				modifiedHistory = true;
+				modifiedTransform = true;
+				modified = true;
+			}
+			ImGui::EndTable();
 		}
 		ImGui::EndDisabled();
 		ImGui::TreePop();

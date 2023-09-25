@@ -96,6 +96,8 @@ void CVis::TConfig::ResetWidths()
 void CVis::TConfig::ResetTransform()
 {
 	zoomFactor = 1.0f;
+	centerNormalized[0] = 0.5f;
+	centerNormalized[1] = 0.5f;
 }
 
 CVis::CVis() :
@@ -268,8 +270,8 @@ bool CVis::InitializeUBO(int i)
 			transformParam.size[3] = 1.0f/transformParam.size[1];
 			transformParam.zoomShift[0] = cfg.zoomFactor;
 			transformParam.zoomShift[1] = cfg.zoomFactor;
-			transformParam.zoomShift[2] = 0.5f - cfg.zoomFactor * 0.5f;
-			transformParam.zoomShift[3] = 0.5f - cfg.zoomFactor * 0.5f;
+			transformParam.zoomShift[2] = 0.5f - cfg.zoomFactor * cfg.centerNormalized[0];
+			transformParam.zoomShift[3] = 0.5f - cfg.zoomFactor * cfg.centerNormalized[1];
 			break;
 		case UBO_LINE_TRACK:
 		case UBO_LINE_HISTORY:
