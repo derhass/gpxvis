@@ -606,6 +606,14 @@ void CVis::TransformToPos(const GLfloat posNormalized[2], GLfloat pos[2]) const
 	pos[1] = (posNormalized[1] - zoomShift[3]) / zoomShift[1];
 }
 
+void CVis::TransformFromPos(const GLfloat pos[2], GLfloat posNormalized[2]) const
+{
+	GLfloat zoomShift[4];
+	GetZoomShift(zoomShift);
+	posNormalized[0] = pos[0] * zoomShift[0] + zoomShift[2];
+	posNormalized[1] = pos[1] * zoomShift[1] + zoomShift[3];
+}
+
 /****************************************************************************
  * MANAGE ANIMATIONS AND MULTIPLE TRACKS                                    *
  ****************************************************************************/

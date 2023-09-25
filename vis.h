@@ -80,6 +80,7 @@ class CVis {
 		float  GetDataAspect() const {return dataAspect;}
 		void GetZoomShift(GLfloat zoomShift[4]) const;
 		void TransformToPos(const GLfloat posNormalized[2], GLfloat pos[2]) const;
+		void TransformFromPos(const GLfloat pos[2], GLfloat posNormalized[2]) const;
 
 	private:
 		typedef enum {
