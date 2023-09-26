@@ -100,6 +100,25 @@ void CVis::TConfig::ResetTransform()
 	centerNormalized[1] = 0.5f;
 }
 
+void CVis::TConfig::ClampTransform()
+{
+	if (zoomFactor < 1.0e-6f) {
+		zoomFactor = 1.0e-6f;
+	} else if (zoomFactor > 1.0e6f) {
+		zoomFactor = 1.0e6f;
+	}
+	if (centerNormalized[0] < 0.0f) {
+		centerNormalized[0] = 0.0f;
+	} else if (centerNormalized[0] > 1.0f) {
+		centerNormalized[0] = 1.0f;
+	}
+	if (centerNormalized[1] < 0.0f) {
+		centerNormalized[1] = 0.0f;
+	} else if (centerNormalized[1] > 1.0f) {
+		centerNormalized[1] = 1.0f;
+	}
+}
+
 CVis::CVis() :
 	bufferVertexCount(0),
 	vertexCount(0),
@@ -587,6 +606,7 @@ void CVis::UpdateConfig()
 
 void CVis::UpdateTransform()
 {
+	cfg.ClampTransform();
 	InitializeUBO(UBO_TRANSFORM);
 }
 

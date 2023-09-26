@@ -285,13 +285,22 @@ static void transformUpdate(MainApp* app, gpxvis::CAnimController& animCtrl, gpx
 /* change the zoom factor */
 static void doZoom(MainApp* app, float factor, float offset)
 {
+	GLfloat oldPos[2];
+	GLfloat newPos[2];
+
 	gpxvis::CAnimController& animCtrl = app->animCtrl;
 	gpxvis::CVis& vis = animCtrl.GetVis();
 	gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
+
+	vis.TransformFromPos(app->mousePosMain, oldPos);
 	visCfg.zoomFactor = factor * visCfg.zoomFactor + offset;
 	if ( visCfg.zoomFactor > 0.99f && visCfg.zoomFactor < 1.01f) {
 		visCfg.zoomFactor = 1.0f;
 	}
+	vis.TransformToPos(oldPos, newPos);
+	visCfg.centerNormalized[0] -= (newPos[0] - app->mousePosMain[0]);
+	visCfg.centerNormalized[1] -= (newPos[1] - app->mousePosMain[1]);
+
 	transformUpdate(app, animCtrl, vis);
 }
 

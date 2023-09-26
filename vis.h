@@ -38,6 +38,7 @@ class CVis {
 			void ResetColors();
 			void ResetWidths();
 			void ResetTransform();
+			void ClampTransform();
 		};
 
 		CVis();
