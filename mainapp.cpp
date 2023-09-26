@@ -101,6 +101,9 @@ typedef struct {
 	/* input state */
 	double mousePosWin[2];
 	GLfloat mousePosMain[2];
+	bool isDragging;
+        GLfloat mousePosDragStart[2];
+	GLfloat centerPosDragStart[2];
 
 	// some gl limits
 	int maxGlTextureSize;
@@ -253,20 +256,20 @@ static void updateMainFramebufferCoords(MainApp* app)
 }
 
 /* transform a window coordinate into the default framebuffer coord of the window */
-static void windowToMainFramebufferNormalized(const MainApp* app, const double pWin[2], GLfloat pos[2])
+static void windowToMainFramebufferNormalized(const MainApp* app, const double pWin[2], GLfloat posView[2], GLfloat posTrack[2])
 {
 	const gpxvis::CVis& vis = app->animCtrl.GetVis();
 
 	/* transform to default framebuffer */
-	pos[0] = (GLfloat)(pWin[0] * app->winToPixel[0]);
-	pos[1] = (GLfloat)(((double)app->height - 1.0 - pWin[1]) * app->winToPixel[1]);
+	posView[0] = (GLfloat)(pWin[0] * app->winToPixel[0]);
+	posView[1] = (GLfloat)(((double)app->height - 1.0 - pWin[1]) * app->winToPixel[1]);
 
 	/* transform to main framebuffer */
-	pos[0] = (pos[0] - (GLfloat) app->mainWidthOffset)  / (GLfloat)app->mainWidth;
-	pos[1] = (pos[1] - (GLfloat) app->mainHeightOffset) / (GLfloat)app->mainHeight;
+	posView[0] = (posView[0] - (GLfloat) app->mainWidthOffset)  / (GLfloat)app->mainWidth;
+	posView[1] = (posView[1] - (GLfloat) app->mainHeightOffset) / (GLfloat)app->mainHeight;
 
 	/* transform to actual position considering the current transformation */
-	vis.TransformToPos(pos, pos);
+	vis.TransformToPos(posView, posTrack);
 }
 
 /****************************************************************************
@@ -401,10 +404,36 @@ static void callback_scroll(GLFWwindow *win, double x, double y)
 /* called by mainLoop(): process further inputs */
 static void processInputs(MainApp *app)
 {
+	GLfloat posView[2];
 	glfwGetCursorPos(app->win, &app->mousePosWin[0], &app->mousePosWin[1]);
-	windowToMainFramebufferNormalized(app, app->mousePosWin, app->mousePosMain);
+	windowToMainFramebufferNormalized(app, app->mousePosWin, posView, app->mousePosMain);
 	if (!isOurInput(app, true)) {
 		return;
+	}
+
+	gpxvis::CAnimController& animCtrl = app->animCtrl;
+	gpxvis::CVis& vis = animCtrl.GetVis();
+	gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
+	int leftButton = glfwGetMouseButton(app->win, GLFW_MOUSE_BUTTON_LEFT);
+	if  (leftButton == GLFW_PRESS) {
+		if (app->isDragging) {
+			GLfloat delta[2];
+			delta[0] = posView[0] - app->mousePosDragStart[0];
+			delta[1] = posView[1] - app->mousePosDragStart[1];
+			if ( (delta[0] != 0.0f) && delta[1] != 0.0f) {
+				visCfg.centerNormalized[0] = app->centerPosDragStart[0] - delta[0] / visCfg.zoomFactor;
+				visCfg.centerNormalized[1] = app->centerPosDragStart[1] - delta[1] / visCfg.zoomFactor;
+				transformUpdate(app, animCtrl, vis);
+			}
+		} else {
+			app->isDragging = true;
+		}
+		app->mousePosDragStart[0] = posView[0];
+		app->mousePosDragStart[1] = posView[1];
+		app->centerPosDragStart[0] = visCfg.centerNormalized[0];
+		app->centerPosDragStart[1] = visCfg.centerNormalized[1];
+	} else {
+		app->isDragging = false;
 	}
 }
 
@@ -488,16 +517,19 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->height = h;
 	app->winWidth = w;
 	app->winHeight = h;
-	app->winToPixel[0] = 1.0;
-	app->winToPixel[1] = 1.0;
+	app->winToPixel[0] = 1.0f;
+	app->winToPixel[1] = 1.0f;
 	app->mainWidth = w;
 	app->mainHeight = h;
 	app->mainWidthOffset = 0;
 	app->mainHeightOffset = 0;
-	app->mousePosWin[0] = 0.0;
-	app->mousePosWin[1] = 0.0;
-	app->mousePosMain[0] = 0.0;
-	app->mousePosMain[1] = 1.0;
+	app->mousePosWin[0] = 0.0f;
+	app->mousePosWin[1] = 0.0f;
+	app->mousePosMain[0] = 0.0f;
+	app->mousePosMain[1] = 1.0f;
+	app->isDragging = false;
+	app->mousePosDragStart[0] = 0.0f;
+	app->mousePosDragStart[1] = 0.0f;
 
 	if (!monitor) {
 		glfwSetWindowPos(app->win, x, y);
