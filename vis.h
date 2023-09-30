@@ -225,6 +225,8 @@ class CAnimController {
 		bool ReverseTrackOrder();
 		bool RemoveDuplicateTracks();
 
+		const gpxutil::CAABB GetAABB() const {return aabb;}
+
 	private:
 		typedef enum {
 			PHASE_INIT,

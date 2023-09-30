@@ -132,6 +132,7 @@ class CAABB {
 		void MergeWith(const CAABB& other);
 		double GetAspect() const;
 		bool GetCenter(double center[3]) const;
+		void InterpolateNormalized2D(const double normalized[2], double result[2]) const;
 
 	private:
 		double aabb[6];

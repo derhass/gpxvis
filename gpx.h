@@ -34,6 +34,7 @@ class CTrack {
 		size_t GetCount() const  {return points.size();}
 		void   GetVertices(bool withZ, const double *origin, const double *scale, std::vector<GLfloat>& data) const;
 		const gpxutil::CAABB& GetAABB() const {return aabb;}
+		const gpxutil::CAABB& GetAABBLonLat() const {return aabbLonLat;}
 		double GetLength() const {return totalLen;}
 		double GetDuration() const {return totalDuration;}
 

@@ -442,6 +442,12 @@ bool CAABB::GetCenter(double center[3]) const
 	return false;
 }
 
+void CAABB::InterpolateNormalized2D(const double normalized[2], double result[2]) const
+{
+	result[0] = (1.0 - normalized[0]) * aabb[0] + normalized[0] * aabb[3];
+	result[1] = (1.0 - normalized[1]) * aabb[1] + normalized[1] * aabb[4];
+}
+
 /****************************************************************************
  * MISC UTILITIES                                                           *
  ****************************************************************************/
