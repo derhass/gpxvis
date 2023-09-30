@@ -103,7 +103,6 @@ typedef struct {
 	GLfloat mousePosMain[2];
 	bool isDragging;
         GLfloat mousePosDragStart[2];
-	GLfloat centerPosDragStart[2];
 
 	// some gl limits
 	int maxGlTextureSize;
@@ -418,20 +417,18 @@ static void processInputs(MainApp *app)
 	if  (leftButton == GLFW_PRESS) {
 		if (app->isDragging) {
 			GLfloat delta[2];
-			delta[0] = posView[0] - app->mousePosDragStart[0];
-			delta[1] = posView[1] - app->mousePosDragStart[1];
+			delta[0] = app->mousePosMain[0] - app->mousePosDragStart[0];
+			delta[1] = app->mousePosMain[1] - app->mousePosDragStart[1];
 			if ( (delta[0] != 0.0f) && delta[1] != 0.0f) {
-				visCfg.centerNormalized[0] = app->centerPosDragStart[0] - delta[0] / visCfg.zoomFactor;
-				visCfg.centerNormalized[1] = app->centerPosDragStart[1] - delta[1] / visCfg.zoomFactor;
+				visCfg.centerNormalized[0] -= delta[0];
+				visCfg.centerNormalized[1] -= delta[1];
 				transformUpdate(app, animCtrl, vis);
 			}
 		} else {
 			app->isDragging = true;
+			app->mousePosDragStart[0] = app->mousePosMain[0];
+			app->mousePosDragStart[1] = app->mousePosMain[1];
 		}
-		app->mousePosDragStart[0] = posView[0];
-		app->mousePosDragStart[1] = posView[1];
-		app->centerPosDragStart[0] = visCfg.centerNormalized[0];
-		app->centerPosDragStart[1] = visCfg.centerNormalized[1];
 	} else {
 		app->isDragging = false;
 	}

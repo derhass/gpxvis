@@ -121,6 +121,7 @@ class CVis {
 		GLsizei width;
 		GLsizei height;
 		float   dataAspect;
+		GLfloat scaleOffset[4];
 
 		TConfig cfg;
 

@@ -124,10 +124,15 @@ CVis::CVis() :
 	vertexCount(0),
 	width(0),
 	height(0),
-	dataAspect(0),
+	dataAspect(1.0f),
 	vaoEmpty(0),
 	texTrackDepth(0)
 {
+	scaleOffset[0] = 2.0f;
+	scaleOffset[1] = 2.0f;
+	scaleOffset[2] =-1.0f;
+	scaleOffset[3] =-1.0f;
+
 	for (int i=0; i<SSBO_COUNT; i++) {
 		ssbo[i] = 0;
 	}
@@ -279,10 +284,14 @@ bool CVis::InitializeUBO(int i)
 			}
 			gpxutil::info("render aspect ratios %f %f, correction %f %f",
 				screenAspect, dataAspect, tscale[0], tscale[1]);
-			transformParam.scale_offset[0] = 2.0f * tscale[0];
-			transformParam.scale_offset[1] = 2.0f * tscale[1];
-			transformParam.scale_offset[2] =-1.0f * tscale[0];
-			transformParam.scale_offset[3] =-1.0f * tscale[1];
+			scaleOffset[0] = 2.0f * tscale[0];
+			scaleOffset[1] = 2.0f * tscale[1];
+			scaleOffset[2] =-1.0f * tscale[0];
+			scaleOffset[3] =-1.0f * tscale[1];
+			transformParam.scale_offset[0] = scaleOffset[0];
+			transformParam.scale_offset[1] = scaleOffset[1];
+			transformParam.scale_offset[2] = scaleOffset[2];
+			transformParam.scale_offset[3] = scaleOffset[3];
 			transformParam.size[0] = (GLfloat)width;
 			transformParam.size[1] = (GLfloat)height;
 			transformParam.size[2] = 1.0f/transformParam.size[0];
@@ -622,8 +631,10 @@ void CVis::TransformToPos(const GLfloat posNormalized[2], GLfloat pos[2]) const
 {
 	GLfloat zoomShift[4];
 	GetZoomShift(zoomShift);
-	pos[0] = (posNormalized[0] - zoomShift[2]) / zoomShift[0];
-	pos[1] = (posNormalized[1] - zoomShift[3]) / zoomShift[1];
+	pos[0] = ((2.0f * posNormalized[0] - 1.0f) - scaleOffset[2]) / scaleOffset[0];
+	pos[1] = ((2.0f * posNormalized[1] - 1.0f) - scaleOffset[3]) / scaleOffset[1];
+	pos[0] = (pos[0] - zoomShift[2]) / zoomShift[0];
+	pos[1] = (pos[1] - zoomShift[3]) / zoomShift[1];
 }
 
 void CVis::TransformFromPos(const GLfloat pos[2], GLfloat posNormalized[2]) const
@@ -632,6 +643,10 @@ void CVis::TransformFromPos(const GLfloat pos[2], GLfloat posNormalized[2]) cons
 	GetZoomShift(zoomShift);
 	posNormalized[0] = pos[0] * zoomShift[0] + zoomShift[2];
 	posNormalized[1] = pos[1] * zoomShift[1] + zoomShift[3];
+	posNormalized[0] = posNormalized[0] * scaleOffset[0] + scaleOffset[2];
+	posNormalized[1] = posNormalized[1] * scaleOffset[1] + scaleOffset[3];
+	posNormalized[0] = 0.5f * posNormalized[0] + 0.5f;
+	posNormalized[1] = 0.5f * posNormalized[1] + 0.5f;
 }
 
 /****************************************************************************
