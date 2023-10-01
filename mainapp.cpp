@@ -1355,10 +1355,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			ImGui::Text("data aspect ratio: %.3f", vis.GetDataAspect());
 			ImGui::EndTable();
 		}
-		if (renderSize[0] < 0) {
+		if (renderSize[0] < 1) {
 			renderSize[0] = (int)vis.GetWidth();
 		}
-		if (renderSize[1] < 0) {
+		if (renderSize[1] < 1) {
 			renderSize[1] = (int)vis.GetHeight();
 		}
 		if (ImGui::SliderInt("render width", &renderSize[0], 256, maxSize, "%dpx")) {
