@@ -158,12 +158,15 @@ class CAnimController {
 			bool          clearAtCycle;
 			TBackgroundMode historyMode;
 			TBackgroundMode neighborhoodMode;
+			bool          adjustToAspect;
+			GLsizei       resolutionGranularity;
 
 			TAnimConfig();
 			void Reset();
 			void ResetSpeeds();
 			void ResetAtCycle();
 			void ResetModes();
+			void ResetResolutionSettings();
 		};
 
 		CAnimController();

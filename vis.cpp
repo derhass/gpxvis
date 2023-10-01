@@ -663,6 +663,7 @@ void CAnimController::TAnimConfig::Reset()
 	ResetSpeeds();
 	ResetAtCycle();
 	ResetModes();
+	ResetResolutionSettings();
 	paused = false;
 }
 
@@ -683,6 +684,12 @@ void CAnimController::TAnimConfig::ResetModes()
 {
 	historyMode = BACKGROUND_UPTO;
 	neighborhoodMode = BACKGROUND_UPTO;
+}
+
+void CAnimController::TAnimConfig::ResetResolutionSettings()
+{
+	adjustToAspect = true;
+	resolutionGranularity = 8;
 }
 
 CAnimController::CAnimController() :
@@ -749,17 +756,24 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	double screenAspect = (double)width/(double)height;
 	GLsizei realWidth = width;
 	GLsizei realHeight = height;
-	if (screenAspect > dataAspect) {
-		realWidth = (GLsizei)(width * (dataAspect/screenAspect) + 0.5);
-	} else {
-		realHeight = (GLsizei)(height * (screenAspect/dataAspect) + 0.5);
+        if (animCfg.adjustToAspect) {
+		if (screenAspect > dataAspect) {
+			realWidth = (GLsizei)(width * (dataAspect/screenAspect) + 0.5);
+		} else {
+			realHeight = (GLsizei)(height * (screenAspect/dataAspect) + 0.5);
+		}
+		gpxutil::info("adjusted rendering resolution from %ux%u (%f) to %ux%u (%f) to match data aspect %f",
+			(unsigned)width, (unsigned)height, screenAspect,
+			(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight, dataAspect);
 	}
-	realWidth = gpxutil::roundNextMultiple(realWidth, 8);
-	realHeight = gpxutil::roundNextMultiple(realHeight, 8);
-	gpxutil::info("adjusted rendering resolution from %ux%u (%f) to %ux%u (%f) to match data aspect %f",
-		(unsigned)width, (unsigned)height, screenAspect,
-		(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight, dataAspect);
-
+	if (animCfg.resolutionGranularity > 1) {
+		realWidth = gpxutil::roundNextMultiple(realWidth, animCfg.resolutionGranularity);
+		realHeight = gpxutil::roundNextMultiple(realHeight, animCfg.resolutionGranularity);
+		gpxutil::info("adjusted rendering resolution from %ux%u (%f) to %ux%u (%f) to match granularity %d, data aspect: %f",
+			(unsigned)width, (unsigned)height, screenAspect,
+			(unsigned)realWidth, (unsigned)realHeight, (double)realWidth/(double)realHeight,
+			(int)animCfg.resolutionGranularity, dataAspect);
+	}
 	if (!vis.InitializeGL(realWidth, realHeight, (float)dataAspect)) {
 		return false;
 	}

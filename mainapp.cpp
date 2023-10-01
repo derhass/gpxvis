@@ -194,6 +194,7 @@ static void initGLState(MainApp* app, const AppConfig& cfg)
 
 	glDepthFunc(GL_LESS);
 	glClearDepth(1.0f);
+	glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
 	app->maxGlTextureSize = 4096;
 	GLint maxViewport[2] = { 4096, 4096};
@@ -1362,11 +1363,13 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			renderSize[1] = (int)vis.GetHeight();
 		}
 		if (ImGui::SliderInt("render width", &renderSize[0], 256, maxSize, "%dpx")) {
-			renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[0], 8);
+			renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[0], animCfg.resolutionGranularity);
 		}
 		if (ImGui::SliderInt("render height", &renderSize[1], 256, maxSize, "%dpx")) {
-			renderSize[1] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[1], 8);
+			renderSize[1] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[1], animCfg.resolutionGranularity);
 		}
+		ImGui::SliderInt("resolution multiple of", (int*)&animCfg.resolutionGranularity, 1, 64, "%dpx");
+		ImGui::Checkbox("Adjust framebuffer size to data aspect ratio", &animCfg.adjustToAspect);
 		if (ImGui::BeginTable("renderbuttonssplit", 2)) {
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Apply", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1382,6 +1385,24 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 				renderSize[1] = -1;
 			}
 			ImGui::EndTable();
+		}
+		if (ImGui::Button("Adapt to window", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			int mask = 63;
+			renderSize[0] = app->width;
+			renderSize[1] = app->height;
+			while (mask > 0) {
+				if ( !(renderSize[0] & mask) && !(renderSize[1] & mask)) {
+					break;
+				}
+				mask = mask>>1;
+			}
+			animCfg.resolutionGranularity = (GLsizei)(mask+1);
+			animCfg.adjustToAspect = false;
+			animCtrl.Prepare((GLsizei)renderSize[0], (GLsizei)renderSize[1]);
+			modifiedHistory = true;
+			modified = true;
+			renderSize[0] = -1;
+			renderSize[1] = -1;
 		}
 		ImGui::EndDisabled();
 		ImGui::TreePop();
