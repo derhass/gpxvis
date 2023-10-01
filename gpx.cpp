@@ -10,6 +10,27 @@
 
 namespace gpx {
 
+// mercator projection with km as units, for a point on the equator
+// we apply a latitude-based scale factor when calculating the individual lenghts
+static const double mercatorScaleX = 40075.0167; // equator length in km
+static const double mercatorScaleY = 39940.65274158; // meridian length accrdoing to WGS84 flattening factor
+
+extern void projectMercator(double lon, double lat, double& x, double&y)
+{
+	lon = lon * M_PI / 180.0;
+	lat = lat * M_PI / 180.0;
+	x = (mercatorScaleX * (lon + M_PI)) / (2.0 * M_PI);
+	y = (mercatorScaleY * (M_PI + log(tan(M_PI/4.0 + lat * 0.5)))) / (2.0 * M_PI);
+}
+
+extern void unprojectMercator(double x, double y, double& lon, double& lat)
+{
+	lon = ((x * 2.0 * M_PI) / mercatorScaleX) - M_PI;
+	lat = 2.0 * (atan(exp(((y * 2.0 * M_PI) / mercatorScaleY) - M_PI)) - M_PI/4.0);
+	lon = lon * 180.0 / M_PI;
+	lat = lat * 180.0 / M_PI;
+}
+
 CTrack::CTrack() :
 	internalID(0)
 {
@@ -65,18 +86,6 @@ static time_t getTime(const char *str)
 		}
 	}
 	return val;
-}
-
-static void projectMercator(double lon, double lat, double& x, double&y)
-{
-	// mercator projection with km as units, for a point on the equator
-	// we apply a latitude-based scale factor when calculating the individual lenghts
-	const double sx = 40075.0167; // equator length in km
-	const double sy = 39940.65274158; // meridian length accrdoing to WGS84 flattening factor
-	lon = lon * M_PI / 180.0;
-	lat = lat * M_PI / 180.0;
-	x = (sx * (lon + M_PI)) / (2.0 * M_PI);
-	y = (sy * (M_PI + log(tan(M_PI/4.0 + lat * 0.5)))) / (2.0 * M_PI);
 }
 
 bool CTrack::Load(const char *filename)

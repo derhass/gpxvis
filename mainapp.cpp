@@ -975,17 +975,17 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		double mPos[2];
 		double tPos[2];
 		double cPos[3];
-		//double lPos[2];
+		double lPos[2];
 		mPos[0] = (double)app->mousePosMain[0];
 		mPos[1] = (double)app->mousePosMain[1];
 		animCtrl.GetAABB().InterpolateNormalized2D(mPos, tPos);
 		animCtrl.GetAABB().GetCenter(cPos);
-		//curTrack->GetAABBLonLat().InterpolateNormalized2D(mPos, lPos); current Track is bullshit
+		gpx::unprojectMercator(tPos[0],tPos[1],lPos[0],lPos[1]);
 		tPos[0] -= cPos[0];
 		tPos[1] -= cPos[1];
 		ImGui::Text("mouse position (normalized): (%f %f)", app->mousePosMain[0], app->mousePosMain[1]);
 		ImGui::Text("mouse position (distance [km]): (%.3f %.3f) %.3f", tPos[0], tPos[1], sqrt(tPos[0]*tPos[0] + tPos[1]*tPos[1]));
-		//ImGui::Text("mouse position (lon/lat): (%.6f %.6f)", lPos[0], lPos[1]);
+		ImGui::Text("mouse position (lon/lat): (%.6f %.6f)", lPos[0], lPos[1]);
 		ImGui::BeginDisabled(disabled);
 		if (ImGui::SliderFloat("zoom factor", &visCfg.zoomFactor, 0.01f, 100.0f, "%.02fx", ImGuiSliderFlags_Logarithmic)) {
 			modifiedHistory = true;
