@@ -83,6 +83,7 @@ typedef struct {
 	AppConfig* cfg;
 	int width, height;
 	int winWidth, winHeight;
+	bool resized;
 	double winToPixel[2];
 	unsigned int flags;
 
@@ -93,6 +94,7 @@ typedef struct {
 	unsigned int frame;
 
 	/* position of the main framebuffer in the final framebuffer */
+	int mainSizeDynamic;
 	GLsizei mainWidth;
 	GLsizei mainHeight;
 	GLsizei mainWidthOffset;
@@ -341,8 +343,11 @@ static void callback_Resize(GLFWwindow *win, int w, int h)
 	gpxutil::info("new framebuffer size: %dx%d pixels",w,h);
 
 	/* store curent size for later use in the main loop */
-	app->width=w;
-	app->height=h;
+	if (w != app->width || h != app->height) {
+		app->width = w;
+		app->height = h;
+		app->resized = true;
+	}
 
 	app->winToPixel[0] = (double)app->width  / (double)app->winWidth;
 	app->winToPixel[1] = (double)app->height / (double)app->winHeight;
@@ -456,6 +461,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->avg_frametime=-1.0;
 	app->avg_fps=-1.0;
 	app->frame = 0;
+	app->resized = false;
 #ifdef GPXVIS_WITH_IMGUI
 	app->fileDialog = NULL;
 #endif
@@ -517,6 +523,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->winHeight = h;
 	app->winToPixel[0] = 1.0f;
 	app->winToPixel[1] = 1.0f;
+	app->mainSizeDynamic = 0;
 	app->mainWidth = w;
 	app->mainHeight = h;
 	app->mainWidthOffset = 0;
@@ -1342,9 +1349,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::TreePop();
 	}
 	if (ImGui::TreeNodeEx("Rendering", 0)) {
-		ImGui::BeginDisabled(disabled);
 		static int renderSize[2] = {-1, -1};
 		int maxSize = 8192;
+		bool adaptToWindow = false;
+		ImGui::BeginDisabled(disabled);
 		if (app->maxGlSize < maxSize) {
 			maxSize = app->maxGlSize;
 		}
@@ -1362,6 +1370,15 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (renderSize[1] < 1) {
 			renderSize[1] = (int)vis.GetHeight();
 		}
+		ImGui::TextUnformatted("Framebuffer size: ");
+		ImGui::SameLine();
+		ImGui::RadioButton("static", &app->mainSizeDynamic, 0);
+		ImGui::SameLine();
+		if (ImGui::RadioButton("dynamic", &app->mainSizeDynamic, 1)) {
+			adaptToWindow = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::BeginDisabled(disabled || (app->mainSizeDynamic == 1));
 		if (ImGui::SliderInt("render width", &renderSize[0], 256, maxSize, "%dpx")) {
 			renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[0], animCfg.resolutionGranularity);
 		}
@@ -1387,6 +1404,14 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			ImGui::EndTable();
 		}
 		if (ImGui::Button("Adapt to window", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			adaptToWindow = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::TreePop();
+		if  (app->mainSizeDynamic && app->resized) {
+			adaptToWindow = true;
+		}
+		if (adaptToWindow) {
 			int mask = 63;
 			renderSize[0] = app->width;
 			renderSize[1] = app->height;
@@ -1404,8 +1429,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			renderSize[0] = -1;
 			renderSize[1] = -1;
 		}
-		ImGui::EndDisabled();
-		ImGui::TreePop();
 	}
 	if (ImGui::TreeNodeEx("Output")) {
 		ImGui::BeginDisabled(disabled);
@@ -1633,6 +1656,7 @@ static void mainLoop(MainApp *app, AppConfig& cfg)
 		if (!displayFunc(app, cfg)) {
 			break;
 		}
+		app->resized = false;
 		app->frame++;
 		frame++;
 		if (cfg.frameCount && app->frame >= cfg.frameCount) {
