@@ -53,14 +53,14 @@ void CVis::TConfig::ResetColors()
 	colorBackground[2] = 0.0f;
 	colorBackground[3] = 0.0f;
 
-	colorBase[0] = 0.6f;
-	colorBase[1] = 0.6f;
-	colorBase[2] = 0.6f;
+	colorBase[0] = 0.35f;
+	colorBase[1] = 0.35f;
+	colorBase[2] = 0.35f;
 	colorBase[3] = 1.0f;
 
-	colorHistoryAdd[0] = 0.0f;
-	colorHistoryAdd[1] = 0.0f;
-	colorHistoryAdd[2] = 1.0f;
+	colorHistoryAdd[0] = 0.85f;
+	colorHistoryAdd[1] = 0.85f;
+	colorHistoryAdd[2] = 0.85f;
 	colorHistoryAdd[3] = 0.0f;
 
 	colorGradient[0][0] = 1.0f;
@@ -90,12 +90,12 @@ void CVis::TConfig::ResetWidths()
 	trackExp = 1.0f;
 	trackPointWidth = 10.0f;
 	trackPointExp = 1.5f;
-	historyWidth = 2.0f;
+	historyWidth = 1.2f;
 	historyExp = 1.0f;
 	neighborhoodWidth = 3.0f;
 	neighborhoodExp = 1.0f;
-	historyWideLine = false;
-	historyAdditive = BACKGROUND_ADD_NONE;
+	historyWideLine = true;
+	historyAdditive = BACKGROUND_ADD_GRADIENT;
 	historyAddExp = 1.0f;
 	historyAddSaturationOffset = 50.0f;
 }
