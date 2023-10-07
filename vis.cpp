@@ -97,7 +97,7 @@ void CVis::TConfig::ResetWidths()
 	historyWideLine = false;
 	historyAdditive = BACKGROUND_ADD_NONE;
 	historyAddExp = 1.0f;
-	historyAddSaturationOffset = 1.0f;
+	historyAddSaturationOffset = 50.0f;
 }
 
 void CVis::TConfig::ResetTransform()
@@ -369,7 +369,7 @@ bool CVis::InitializeUBO(int i)
 				} else {
 					lineParam.distExp[0] = 1.0f;
 				}
-				lineParam.distExp[1] = cfg.historyAddSaturationOffset;
+				lineParam.distExp[1] = 1.0f / cfg.historyAddSaturationOffset;
 			} else if (i == UBO_LINE_HISTORY) {
 				lineParam.distExp[0] = cfg.historyExp;
 				lineParam.distExp[1] = cfg.trackPointExp;

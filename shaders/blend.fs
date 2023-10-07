@@ -22,7 +22,7 @@ void main()
 	float standardHistory = min(history, 1.0);
 	float historyExp = pow(history,lineParam.distExp.x);
 	float extraHistory = max(historyExp - 1.0, 0.0);
-	float gradient = 2.0 * historyExp / (historyExp + lineParam.distExp.y);
+	float gradient = min(standardHistory +  extraHistory * lineParam.distExp.y,2.0);
 	vec4 bgBase = mix(lineParam.colorGradient[0], lineParam.colorGradient[1], standardHistory);
 	vec4 bgA = min(bgBase + extraHistory * lineParam.colorGradient[2], 1.0);
 	int sel = int(gradient);

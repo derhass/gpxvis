@@ -1382,7 +1382,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::EndDisabled();
 		ImGui::BeginDisabled(visCfg.historyAdditive != gpxvis::CVis::BACKGROUND_ADD_GRADIENT);
-		if (ImGui::SliderFloat("exposure offset", &visCfg.historyAddSaturationOffset, 0.001f, 1000.0f, "%0.3f", ImGuiSliderFlags_Logarithmic)) {
+		if (ImGui::SliderFloat("gradient slope", &visCfg.historyAddSaturationOffset, 1.0f, 100.0f, "%0.1f")) {
 			modified = true;
 			modifiedHistory = true;
 		}
