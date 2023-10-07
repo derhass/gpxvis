@@ -1270,6 +1270,12 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			modified = true;
 			modifiedHistory = true;
 		}
+		ImGui::BeginDisabled(visCfg.historyAdditive < gpxvis::CVis::BACKGROUND_ADD_MIXED_COLORS);
+		if (ImGui::ColorEdit3("track history add", visCfg.colorHistoryAdd)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::EndDisabled();
 		if (ImGui::ColorEdit3("gradient new", &visCfg.colorGradient[0][0])) {
 			modified = true;
 		}
@@ -1312,23 +1318,52 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			modified = true;
 			modifiedHistory = true;
 		}
-		ImGui::TextUnformatted("History Line mode: ");
-		ImGui::SameLine();
-		if (ImGui::RadioButton("thin", &historyLineMode, 0)) {
-			visCfg.historyWideLine = false;
-			modified = true;
-			modifiedHistory = true;
+		if (ImGui::BeginTable("visoptionshistorylinesplit", 3)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("History Line mode:");
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("thin", &historyLineMode, 0)) {
+				visCfg.historyWideLine = false;
+				modified = true;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("wide", &historyLineMode, 1)) {
+				visCfg.historyWideLine = true;
+				modified = true;
+				modifiedHistory = true;
+			}
+			ImGui::EndTable();
 		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("wide", &historyLineMode, 1)) {
-			visCfg.historyWideLine = true;
-			modified = true;
-			modifiedHistory = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::Checkbox("additive", &visCfg.historyAdditive)) {
-			modified = true;
-			modifiedHistory = true;
+		if (ImGui::BeginTable("visoptionshistorysplit", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Additive:");
+			ImGui::TableNextColumn();
+			int histAddMode =(int)visCfg.historyAdditive;
+			if (ImGui::RadioButton("off", &histAddMode, gpxvis::CVis::BACKGROUND_ADD_NONE)) {
+				visCfg.historyAdditive = (gpxvis::CVis::TBackgroundAdditiveMode)histAddMode; 
+				modified = true;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("simple", &histAddMode, gpxvis::CVis::BACKGROUND_ADD_SIMPLE)) {
+				visCfg.historyAdditive = (gpxvis::CVis::TBackgroundAdditiveMode)histAddMode; 
+				modified = true;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("mixed", &histAddMode, gpxvis::CVis::BACKGROUND_ADD_MIXED_COLORS)) {
+				visCfg.historyAdditive = (gpxvis::CVis::TBackgroundAdditiveMode)histAddMode; 
+				modified = true;
+				modifiedHistory = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("gradient", &histAddMode, gpxvis::CVis::BACKGROUND_ADD_GRADIENT)) {
+				visCfg.historyAdditive = (gpxvis::CVis::TBackgroundAdditiveMode)histAddMode; 
+				modified = true;
+				modifiedHistory = true;
+			}
+			ImGui::EndTable();
 		}
 		ImGui::BeginDisabled(!visCfg.historyWideLine);
 		if (ImGui::SliderFloat("history width", &visCfg.historyWidth, 0.0f, 32.0f)) {
@@ -1336,6 +1371,18 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			modifiedHistory = true;
 		}
 		if (ImGui::SliderFloat("history sharpness", &visCfg.historyExp, 0.1f, 10.0f, "%0.2f", ImGuiSliderFlags_Logarithmic)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::BeginDisabled(visCfg.historyAdditive == gpxvis::CVis::BACKGROUND_ADD_NONE);
+		if (ImGui::SliderFloat("additive exponent", &visCfg.historyAddExp, 0.01f, 100.0f, "%0.3f", ImGuiSliderFlags_Logarithmic)) {
+			modified = true;
+			modifiedHistory = true;
+		}
+		ImGui::EndDisabled();
+		ImGui::BeginDisabled(visCfg.historyAdditive != gpxvis::CVis::BACKGROUND_ADD_GRADIENT);
+		if (ImGui::SliderFloat("exposure offset", &visCfg.historyAddSaturationOffset, 0.001f, 1000.0f, "%0.3f", ImGuiSliderFlags_Logarithmic)) {
 			modified = true;
 			modifiedHistory = true;
 		}

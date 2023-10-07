@@ -58,6 +58,11 @@ void CVis::TConfig::ResetColors()
 	colorBase[2] = 0.6f;
 	colorBase[3] = 1.0f;
 
+	colorHistoryAdd[0] = 0.0f;
+	colorHistoryAdd[1] = 0.0f;
+	colorHistoryAdd[2] = 1.0f;
+	colorHistoryAdd[3] = 0.0f;
+
 	colorGradient[0][0] = 1.0f;
 	colorGradient[0][1] = 0.0f;
 	colorGradient[0][2] = 0.0f;
@@ -90,7 +95,9 @@ void CVis::TConfig::ResetWidths()
 	neighborhoodWidth = 3.0f;
 	neighborhoodExp = 1.0f;
 	historyWideLine = false;
-	historyAdditive = false;
+	historyAdditive = BACKGROUND_ADD_NONE;
+	historyAddExp = 1.0f;
+	historyAddSaturationOffset = 1.0f;
 }
 
 void CVis::TConfig::ResetTransform()
@@ -153,6 +160,24 @@ CVis::~CVis()
 	DropGL();
 }
 
+GLenum CVis::GetFramebufferTextureFormat(TFramebuffer fb) const
+{
+	GLenum format;
+
+	switch(fb) {
+		case FB_BACKGROUND:
+		case FB_BACKGROUND_SCRATCH:
+			format = GL_R32F;
+			break;
+		case FB_NEIGHBORHOOD:
+			format = GL_R8;
+			break;
+		default:
+			format = GL_RGBA8;
+	}
+	return format;
+}
+
 bool CVis::InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio)
 {
 	dataAspect = dataAspectRatio;
@@ -170,7 +195,7 @@ bool CVis::InitializeGL(GLsizei w, GLsizei h, float dataAspectRatio)
 
 	for (int i=0; i<FB_COUNT; i++) {
 		if (!tex[i]) {
-			GLenum format = (i == FB_NEIGHBORHOOD)? GL_R8:GL_RGBA8;
+			GLenum format = GetFramebufferTextureFormat((TFramebuffer)i);
 			glGenTextures(1, &tex[i]);
 			glBindTexture(GL_TEXTURE_2D, tex[i]);
 			glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
@@ -300,10 +325,11 @@ bool CVis::InitializeUBO(int i)
 			break;
 		case UBO_LINE_TRACK:
 		case UBO_LINE_HISTORY:
+		case UBO_LINE_HISTORY_FINAL:
 		case UBO_LINE_NEIGHBORHOOD:
 			size = sizeof(ubo::lineParam);
 			ptr = &lineParam;
-			if (i == UBO_LINE_NEIGHBORHOOD) {
+			if ((i == UBO_LINE_NEIGHBORHOOD) || (i == UBO_LINE_HISTORY)) {
 				lineParam.colorBase[0] = 1.0f;
 				lineParam.colorBase[1] = 1.0f;
 				lineParam.colorBase[2] = 1.0f;
@@ -311,23 +337,53 @@ bool CVis::InitializeUBO(int i)
 			} else {
 				memcpy(lineParam.colorBase, cfg.colorBase, 4*sizeof(GLfloat));
 			}
-			memcpy(lineParam.colorGradient, cfg.colorGradient, 4*4*sizeof(GLfloat));
-			lineParam.distCoeff[0] = 1.0f;
-			lineParam.distCoeff[1] = 0.0f;
-			lineParam.distCoeff[2] = 1.0f;
-			lineParam.distCoeff[3] = 0.0f;
-			if (i == UBO_LINE_HISTORY) {
+			if (i == UBO_LINE_HISTORY_FINAL) {
+				memcpy(&lineParam.colorGradient[0], cfg.colorBackground, 4*sizeof(GLfloat));
+				memcpy(&lineParam.colorGradient[1], cfg.colorBase, 4*sizeof(GLfloat));
+				if (cfg.historyAdditive >= BACKGROUND_ADD_MIXED_COLORS) {
+					memcpy(&lineParam.colorGradient[2], cfg.colorHistoryAdd, 4*sizeof(GLfloat));
+					memcpy(&lineParam.colorGradient[3], cfg.colorHistoryAdd, 4*sizeof(GLfloat));
+				} else {
+					memcpy(&lineParam.colorGradient[2], cfg.colorBase, 4*sizeof(GLfloat));
+					memcpy(&lineParam.colorGradient[3], cfg.colorBase, 4*sizeof(GLfloat));
+				}
+				if (cfg.historyAdditive == BACKGROUND_ADD_GRADIENT) {
+					lineParam.distCoeff[0] = 0.0f;
+					lineParam.distCoeff[1] = 1.0f;
+				} else {
+					lineParam.distCoeff[0] = 1.0f;
+					lineParam.distCoeff[1] = 0.0f;
+				}
+				lineParam.distCoeff[2] = 0.0f;
+				lineParam.distCoeff[3] = 0.0f;
+			} else {
+				memcpy(lineParam.colorGradient, cfg.colorGradient, 4*4*sizeof(GLfloat));
+				lineParam.distCoeff[0] = 1.0f;
+				lineParam.distCoeff[1] = 0.0f;
+				lineParam.distCoeff[2] = 1.0f;
+				lineParam.distCoeff[3] = 0.0f;
+			}
+			if (i == UBO_LINE_HISTORY_FINAL) {
+				if (cfg.historyAdditive > BACKGROUND_ADD_NONE) {
+					lineParam.distExp[0] = cfg.historyAddExp;
+				} else {
+					lineParam.distExp[0] = 1.0f;
+				}
+				lineParam.distExp[1] = cfg.historyAddSaturationOffset;
+			} else if (i == UBO_LINE_HISTORY) {
 				lineParam.distExp[0] = cfg.historyExp;
+				lineParam.distExp[1] = cfg.trackPointExp;
 			} else if (i == UBO_LINE_NEIGHBORHOOD) {
 				lineParam.distExp[0] = cfg.neighborhoodExp;
+				lineParam.distExp[1] = cfg.trackPointExp;
 			} else {
 				lineParam.distExp[0] = cfg.trackExp;
+				lineParam.distExp[1] = cfg.trackPointExp;
 			}
-			lineParam.distExp[1] = cfg.trackPointExp;
 			lineParam.distExp[2] = 1.0f;
 			lineParam.distExp[3] = 1.0f;
 			screenSize = (width < height)?(float)width:(float)height;
-			if (i == UBO_LINE_HISTORY) {
+			if ((i == UBO_LINE_HISTORY) || (i == UBO_LINE_HISTORY_FINAL)) {
 				lineParam.lineWidths[0] = (float)cfg.historyWidth / screenSize;
 			} else {
 				lineParam.lineWidths[0] = (float)cfg.neighborhoodWidth / screenSize;
@@ -482,7 +538,7 @@ void CVis::DrawHistory()
 	} else {
 		glUseProgram(program[PROG_LINE_SIMPLE]);
 
-		if (cfg.historyAdditive) {
+		if (cfg.historyAdditive > BACKGROUND_ADD_NONE) {
 			glBlendEquation(GL_FUNC_ADD);
 			glBlendFunc(GL_ONE, GL_ONE);
 			glEnable(GL_BLEND);
@@ -511,14 +567,14 @@ void CVis::DrawNeighborhood()
 
 void CVis::AddHistory()
 {
-	if (cfg.historyWideLine && cfg.historyAdditive) {
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_SCRATCH]);
+	if (cfg.historyWideLine && (cfg.historyAdditive > BACKGROUND_ADD_NONE)) {
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND_SCRATCH]);
 		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		DrawHistory();
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
 		glUseProgram(program[PROG_FULLSCREEN_TEX]);
-		glBindTextures(3, 1, &tex[FB_SCRATCH]);
+		glBindTextures(3, 1, &tex[FB_BACKGROUND_SCRATCH]);
 		glBlendEquation(GL_FUNC_ADD);
 		glBlendFunc(GL_ONE, GL_ONE);
 		glEnable(GL_BLEND);
@@ -556,6 +612,7 @@ void CVis::MixTrackAndBackground(float factor)
 	glViewport(0,0,width,height);
 	glBindVertexArray(vaoEmpty);
 	glUseProgram(program[PROG_FULLSCREEN_BLEND]);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo[UBO_LINE_HISTORY_FINAL]);
 	GLuint texs[2] = {tex[FB_BACKGROUND], tex[FB_TRACK]};
 	glBindTextures(1,2,texs);
 	glDisable(GL_BLEND);
@@ -566,7 +623,8 @@ void CVis::MixTrackAndBackground(float factor)
 void CVis::ClearHistory()
 {
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-	glClearColor(cfg.colorBackground[0], cfg.colorBackground[1], cfg.colorBackground[2], cfg.colorBackground[3]);
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	//glClearColor(cfg.colorBackground[0], cfg.colorBackground[1], cfg.colorBackground[2], cfg.colorBackground[3]);
 	glClear(GL_COLOR_BUFFER_BIT);
 }
 
@@ -610,6 +668,7 @@ void CVis::UpdateConfig()
 {
 	InitializeUBO(UBO_LINE_TRACK);
 	InitializeUBO(UBO_LINE_HISTORY);
+	InitializeUBO(UBO_LINE_HISTORY_FINAL);
 	InitializeUBO(UBO_LINE_NEIGHBORHOOD);
 }
 

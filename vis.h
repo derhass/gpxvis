@@ -16,9 +16,17 @@ namespace gpxvis {
 
 class CVis {
 	public:
+		typedef enum : int {
+			BACKGROUND_ADD_NONE,
+			BACKGROUND_ADD_SIMPLE,
+			BACKGROUND_ADD_MIXED_COLORS,
+			BACKGROUND_ADD_GRADIENT,
+		} TBackgroundAdditiveMode;
+
 		struct TConfig {
 			GLfloat colorBackground[4];
 			GLfloat colorBase[4];
+			GLfloat colorHistoryAdd[4];
 			GLfloat colorGradient[4][4];
 			GLfloat trackWidth;
 			GLfloat trackExp;
@@ -31,7 +39,9 @@ class CVis {
 			GLfloat zoomFactor;
 			GLfloat centerNormalized[2];
 			bool historyWideLine;
-			bool historyAdditive;
+			TBackgroundAdditiveMode historyAdditive;
+			GLfloat historyAddExp;
+			GLfloat historyAddSaturationOffset;
 
 			TConfig();
 			void Reset();
@@ -91,10 +101,10 @@ class CVis {
 
 		typedef enum {
 			FB_BACKGROUND,
+			FB_BACKGROUND_SCRATCH,
 			FB_NEIGHBORHOOD,
 			FB_TRACK,
 			FB_FINAL,
-			FB_SCRATCH,
 			FB_COUNT // end marker
 		} TFramebuffer;
 
@@ -102,6 +112,7 @@ class CVis {
 			UBO_TRANSFORM,
 			UBO_LINE_TRACK,
 			UBO_LINE_HISTORY,
+			UBO_LINE_HISTORY_FINAL,
 			UBO_LINE_NEIGHBORHOOD,
 			UBO_COUNT // end marker
 		} TUBO;
@@ -133,6 +144,7 @@ class CVis {
 		GLuint ubo[UBO_COUNT];
 		GLuint program[PROG_COUNT];
 
+		GLenum GetFramebufferTextureFormat(TFramebuffer fb) const;
 		bool InitializeUBO(int i);
 };
 
