@@ -517,7 +517,7 @@ void CVis::AddHistory()
 		glClear(GL_COLOR_BUFFER_BIT);
 		DrawHistory();
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_BACKGROUND]);
-		glUseProgram(program[PROG_FULLSCREN_TEX]);
+		glUseProgram(program[PROG_FULLSCREEN_TEX]);
 		glBindTextures(3, 1, &tex[FB_SCRATCH]);
 		glBlendEquation(GL_FUNC_ADD);
 		glBlendFunc(GL_ONE, GL_ONE);
