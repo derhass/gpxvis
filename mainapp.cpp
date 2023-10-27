@@ -9,6 +9,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_opengl3.h"
+#include "imgui_stdlib.h"
 #include "filedialog.h"
 #endif
 
@@ -44,7 +45,7 @@ struct AppConfig {
 	bool withGUI;
 	bool exitAfterOutputFrames;
 	int switchTo;
-	char *outputFrames;
+	const char *outputFrames;
 
 	AppConfig() :
 		posx(100),
@@ -113,6 +114,10 @@ typedef struct {
 	gpxvis::CAnimController animCtrl;
 #ifdef GPXVIS_WITH_IMGUI
 	filedialog::CFileDialogTracks *fileDialog;
+	filedialog::CFileDialogSelectDir *dirDialog;
+	std::string outputDir;
+	std::string outputPrefix;
+	std::string outputFilename;
 #endif
 } MainApp;
 
@@ -464,6 +469,10 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->resized = false;
 #ifdef GPXVIS_WITH_IMGUI
 	app->fileDialog = NULL;
+	app->dirDialog = NULL;
+	app->outputDir = ".";
+	app->outputPrefix = "gpxvis_";
+	app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
 #endif
 
 	/* initialize GLFW library */
@@ -875,11 +884,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	bool modifiedHistory = false;
 	bool modifiedTransform = false;
 	static bool first  = true;
-	static char outputFilename[256];
 	static bool showTrackManager = false;
-	if (first) {
-		strcpy(outputFilename, "gpxvis_");
-	}
 
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
@@ -1487,7 +1492,16 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		static bool withLabel = false;
 		static bool exitAfter = false;
 		ImGui::SeparatorText("Output to Files");
-		ImGui::InputText("filename prefix", outputFilename, sizeof(outputFilename));
+		ImGui::BeginDisabled((app->dirDialog == NULL));
+		if (ImGui::Button("Select Directory", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			if (app->dirDialog) {
+				app->dirDialog->ChangeDir(app->outputDir);
+				app->dirDialog->Open();
+			}
+		}
+		ImGui::EndDisabled();
+		ImGui::InputText("output directory", &app->outputDir);
+		ImGui::InputText("filename prefix", &app->outputPrefix);
 		ImGui::Checkbox("force fixed timestep", &forceFixedTimestep);
 		ImGui::Checkbox("render text labels into images", &withLabel);
 		ImGui::Checkbox("exit application when finished", &exitAfter);
@@ -1500,7 +1514,8 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
 				}
 				animCtrl.Play();
-				cfg.outputFrames = outputFilename;
+				app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
+				cfg.outputFrames = app->outputFilename.c_str();
 				cfg.exitAfterOutputFrames = exitAfter;
 				cfg.withGUI = withLabel;
 			}
@@ -1511,14 +1526,16 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
 				}
 				animCtrl.Play();
-				cfg.outputFrames = outputFilename;
+				app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
+				cfg.outputFrames = app->outputFilename.c_str();
 				cfg.exitAfterOutputFrames = exitAfter;
 				cfg.withGUI = withLabel;
 			}
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Save current frame", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 				static unsigned long currentFrameIdx = 0;
-				saveCurrentFrame(animCtrl, outputFilename, "current_", currentFrameIdx++);
+				app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
+				saveCurrentFrame(animCtrl, app->outputFilename.c_str(), "current_", currentFrameIdx++);
 			}
 			ImGui::EndTable();
 		}
@@ -1558,6 +1575,11 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 		}
 
+	}
+	if (app->dirDialog && app->dirDialog->Visible()) {
+		if (app->dirDialog->Draw()) {
+			app->outputDir = app->dirDialog->GetPath();
+		}
 	}
 	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	first  = false;
@@ -1802,6 +1824,7 @@ int REALMAIN (int argc, char **argv)
 	MainApp app;	/* the cube application stata stucture */
 #ifdef GPXVIS_WITH_IMGUI
 	filedialog::CFileDialogTracks fileDialog(app.animCtrl);
+	filedialog::CFileDialogSelectDir dirDialog;
 #endif
 
 	parseCommandlineArgs(cfg, app, argc, argv);
@@ -1809,6 +1832,7 @@ int REALMAIN (int argc, char **argv)
 	if (initMainApp(&app, cfg)) {
 #ifdef GPXVIS_WITH_IMGUI
 		app.fileDialog = &fileDialog;
+		app.dirDialog = &dirDialog;
 #endif
 		/* initialization succeeded, enter the main loop */
 		mainLoop(&app, cfg);

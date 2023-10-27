@@ -10,9 +10,24 @@
 
 namespace filedialog {
 
+/****************************************************************************
+ * PATH AND FILENAME RELATED UTILITY FUNCTIONS                              *
+ ****************************************************************************/
+
+extern void removePathDelimitersAtEnd(std::string& path);
+extern std::string makePath(const std::string& path, const std::string& file);
+extern std::string makeAbsolutePath(const std::string& path);
+extern bool extensionMatches(const std::string& file, const std::string& extension);
+extern bool ListDirectory(const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files);
+
+/****************************************************************************
+ * BASE CLASS FOR FILE DIALOGS VIA IMGUI                                    *
+ ****************************************************************************/
+
 class CFileDialogBase {
 	public:
 		CFileDialogBase();
+		CFileDialogBase(bool selectDirectoryOnly);
 
 		bool ChangeDir(const std::string& newPath);
 		bool Draw();
@@ -24,8 +39,11 @@ class CFileDialogBase {
 		void ToggleOpen() {isOpen = !isOpen;}
 
 		bool Visible() const {return isOpen;}
+
+		const std::string& GetPath() const {return path;}
 	
 	protected:
+		bool                     selectDirectory;
 		bool                     isOpen;
 		std::string              path;
 		std::string              pathDialog;
@@ -39,7 +57,12 @@ class CFileDialogBase {
 		void DoApplyFile(const std::string& file);
 		virtual void Apply(const std::string& fullFilename);
 		virtual void Update();
+		virtual const char *GetDialogName();
 };
+
+/****************************************************************************
+ * FILE DIALOG FOR GPX TRACK SELECTION                                      *
+ ****************************************************************************/
 
 class CFileDialogTracks : public CFileDialogBase {
 	public:
@@ -49,6 +72,19 @@ class CFileDialogTracks : public CFileDialogBase {
 		gpxvis::CAnimController& animCtrl;
 
 		virtual void Apply(const std::string& fullFilename);
+		virtual const char *GetDialogName();
+};
+
+/****************************************************************************
+ * DIRECTORY SELECTION DIALOG                                               *
+ ****************************************************************************/
+
+class CFileDialogSelectDir : public CFileDialogBase {
+	public:
+		CFileDialogSelectDir();
+
+	protected:
+		virtual const char *GetDialogName();
 };
 
 } // namespace filedialog

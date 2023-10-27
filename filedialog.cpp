@@ -25,7 +25,11 @@
 
 namespace filedialog {
 
-static void removePathDelimitersAtEnd(std::string& path)
+/****************************************************************************
+ * PATH AND FILENAME RELATED UTILITY FUNCTIONS                              *
+ ****************************************************************************/
+
+extern void removePathDelimitersAtEnd(std::string& path)
 {
 	size_t len = path.length();
 	while(len > 1) {
@@ -44,7 +48,7 @@ static void removePathDelimitersAtEnd(std::string& path)
 	}
 }
 
-static std::string makePath(const std::string& path, const std::string& file)
+extern std::string makePath(const std::string& path, const std::string& file)
 {
 	std::string result = path;
 	if (result.empty()) {
@@ -59,7 +63,7 @@ static std::string makePath(const std::string& path, const std::string& file)
 	return result;
 }
 
-static std::string makeAbsolutePath(const std::string& path)
+extern std::string makeAbsolutePath(const std::string& path)
 {
 #ifdef WIN32
 	std::wstring path_wide = gpxutil::utf8ToWide(path);
@@ -78,7 +82,7 @@ static std::string makeAbsolutePath(const std::string& path)
 #endif
 }
 
-static bool extensionMatches(const std::string& file, const std::string& extension)
+extern bool extensionMatches(const std::string& file, const std::string& extension)
 {
 	size_t fl = file.length();
 	size_t el = extension.length();
@@ -109,7 +113,7 @@ static void processDirectoryEntry(WIN32_FIND_DATAW& ffd, const std::string& path
 }
 #endif
 
-static bool ListDirectory(const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files)
+extern bool ListDirectory(const std::string& path, std::vector<std::string>& subdirs, std::vector<std::string>& files)
 {
 #ifdef WIN32
 	HANDLE h = INVALID_HANDLE_VALUE;
@@ -161,7 +165,19 @@ static bool ListDirectory(const std::string& path, std::vector<std::string>& sub
 #endif
 }
 
+/****************************************************************************
+ * BASE CLASS FOR FILE DIALOGS VIA IMGUI                                    *
+ ****************************************************************************/
+
 CFileDialogBase::CFileDialogBase() :
+	selectDirectory(false),
+	isOpen(false),
+	extension(".gpx")
+{
+}
+
+CFileDialogBase::CFileDialogBase(bool selectDirectoryOnly) :
+	selectDirectory(selectDirectoryOnly),
 	isOpen(false),
 	extension(".gpx")
 {
@@ -205,7 +221,7 @@ bool CFileDialogBase::Draw()
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 700, main_viewport->WorkPos.y+20), ImGuiCond_FirstUseEver);
 	ImGui::SetNextWindowSize(ImVec2(640, 0), ImGuiCond_FirstUseEver);
-	if (!ImGui::Begin("File Selection", &isOpen)) {
+	if (!ImGui::Begin(GetDialogName(), &isOpen)) {
 		ImGui::End();
 	}
 
@@ -227,72 +243,82 @@ bool CFileDialogBase::Draw()
 			} else {
 				size_t idx = i - dirCnt;
 				if (ImGui::Selectable(files[idx].c_str(), selection[idx])) {
-					selection[idx] = !selection[idx];
-					file = files[idx];
-					ImGui::SetItemDefaultFocus();
+					if (!selectDirectory) {
+						selection[idx] = !selection[idx];
+						file = files[idx];
+						ImGui::SetItemDefaultFocus();
+					}
 				}
 			}
 		}
 		ImGui::EndListBox();
 	}
-	ImGui::SeparatorText("Selection and Actions:");
-	ImGui::InputText("File", &file);
-	ImGui::InputText("Extension", &extension);
-	if (ImGui::BeginTable("filedialogsplit0", 4)) {
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Select All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			for (size_t i=0; i<fileCnt; i++) {
-				selection[i] = true;
+	if (selectDirectory) {
+		ImGui::SeparatorText("Actions:");
+		if (ImGui::Button("Use this Directory", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			filesAdded = true;
+			Close();
+		}
+	} else {
+		ImGui::SeparatorText("Selection and Actions:");
+		ImGui::InputText("File", &file);
+		ImGui::InputText("Extension", &extension);
+		if (ImGui::BeginTable("filedialogsplit0", 4)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Select All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				for (size_t i=0; i<fileCnt; i++) {
+					selection[i] = true;
+				}
 			}
-		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Select None", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			DropSelection();
-		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Select by Extension", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			SelectByExtension();
-		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Invert Selection", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			for (size_t i=0; i<fileCnt; i++) {
-				selection[i] = !selection[i];
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Select None", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				DropSelection();
 			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Select by Extension", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				SelectByExtension();
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Invert Selection", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				for (size_t i=0; i<fileCnt; i++) {
+					selection[i] = !selection[i];
+				}
 
+			}
+			ImGui::EndTable();
 		}
-		ImGui::EndTable();
-	}
-	if (ImGui::BeginTable("filedialogsplit1", 4)) {
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Add Selected", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			for (size_t i=0; i<fileCnt; i++) {
-				if (selection[i]) {
+		if (ImGui::BeginTable("filedialogsplit1", 4)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Selected", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				for (size_t i=0; i<fileCnt; i++) {
+					if (selection[i]) {
+						DoApplyFile(i);
+						filesAdded = true;
+					}
+				}
+				DropSelection();
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add Single", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				if (!file.empty()) {
+					DoApplyFile(file);
+					filesAdded = true;
+					DropSelection();
+				}
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				for (size_t i=0; i<fileCnt; i++) {
 					DoApplyFile(i);
 					filesAdded = true;
 				}
 			}
-			DropSelection();
-		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Add Single", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			if (!file.empty()) {
-				DoApplyFile(file);
-				filesAdded = true;
-				DropSelection();
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Close", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				Close();
 			}
+			ImGui::EndTable();
 		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Add All", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			for (size_t i=0; i<fileCnt; i++) {
-				DoApplyFile(i);
-				filesAdded = true;
-			}
-		}
-		ImGui::TableNextColumn();
-		if (ImGui::Button("Close", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			Close();
-		}
-		ImGui::EndTable();
 	}
 	ImGui::End();
 	if (!changePath.empty()) {
@@ -315,7 +341,7 @@ void CFileDialogBase::DropSelection()
 
 void CFileDialogBase::SelectByExtension(bool updateFile)
 {
-	if (extension.empty()) {
+	if (extension.empty() || selectDirectory) {
 		return;
 	}
 	for (size_t i=0; i<files.size(); i++) {
@@ -346,6 +372,15 @@ void CFileDialogBase::Update()
 {
 }
 
+const char *CFileDialogBase::GetDialogName()
+{
+	return "File Selection";
+}
+
+/****************************************************************************
+ * FILE DIALOG FOR GPX TRACK SELECTION                                      *
+ ****************************************************************************/
+
 CFileDialogTracks::CFileDialogTracks(gpxvis::CAnimController& aniCtrl) :
 	CFileDialogBase(),
 	animCtrl(aniCtrl)
@@ -355,6 +390,25 @@ CFileDialogTracks::CFileDialogTracks(gpxvis::CAnimController& aniCtrl) :
 void CFileDialogTracks::Apply(const std::string& fullFilename)
 {
 	animCtrl.AddTrack(fullFilename.c_str());
+}
+
+const char *CFileDialogTracks::GetDialogName()
+{
+	return "GPX Track File Selection";
+}
+
+/****************************************************************************
+ * DIRECTORY SELECTION DIALOG                                               *
+ ****************************************************************************/
+
+CFileDialogSelectDir::CFileDialogSelectDir() :
+	CFileDialogBase(true)
+{
+}
+
+const char *CFileDialogSelectDir::GetDialogName()
+{
+	return "Select Directory";
 }
 
 } // namespace filedialog
