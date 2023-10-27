@@ -165,6 +165,7 @@ class CAnimController {
 			double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
 			double        trackSpeed;        // 1.0 is realtime
 			double        fadeoutTime;	 // seconds
+			double        endTime;           // sedonds
 			bool          paused;
 			bool          pauseAtCycle;
 			bool          clearAtCycle;
@@ -249,6 +250,7 @@ class CAnimController {
 			PHASE_FADEOUT_INIT,
 			PHASE_FADEOUT,
 			PHASE_SWITCH_TRACK,
+			PHASE_END,
 			PHASE_CYCLE,
 		} TPhase;
 

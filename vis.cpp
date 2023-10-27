@@ -731,6 +731,7 @@ void CAnimController::TAnimConfig::ResetSpeeds()
 	animDeltaPerFrame = -1.0;
 	trackSpeed = 3.0 * 3600.0;
 	fadeoutTime = 0.5;
+	endTime = 3.0;
 }
 
 void CAnimController::TAnimConfig::ResetAtCycle()
@@ -1089,6 +1090,16 @@ bool CAnimController::UpdateStep(double timeDelta)
 				} else {
 					curTrack = 0;
 				}
+				nextPhase = PHASE_END;
+			} else {
+				curFadeRatio = 0.0f;
+				curFadeTime = 0.0;
+				UpdateTrack(curTrack);
+				nextPhase = PHASE_INIT;
+			}
+			break;
+		case PHASE_END:
+			if (animationTime >= phaseEntryTime + animCfg.endTime) {
 				nextPhase = PHASE_CYCLE;
 				if (animCfg.pauseAtCycle) {
 					animCfg.paused = true;
@@ -1096,12 +1107,8 @@ bool CAnimController::UpdateStep(double timeDelta)
 				if (animCfg.clearAtCycle) {
 					vis.Clear();
 				}
-			} else {
-				curFadeRatio = 0.0f;
-				curFadeTime = 0.0;
-				UpdateTrack(curTrack);
-				nextPhase = PHASE_INIT;
 			}
+			vis.MixTrackAndBackground(1.0f - curFadeRatio);
 			break;
 		case PHASE_CYCLE:
 			if (!animCfg.paused) {

@@ -1184,6 +1184,10 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
 			animCfg.fadeoutTime = fadeout;
 		}
+		float endTime = (float)animCfg.endTime;
+		if (ImGui::SliderFloat("final end time", &endTime, 0.0f, 30.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+			animCfg.endTime = endTime;
+		}
 		if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
 			timestepModified = true;
 		}
