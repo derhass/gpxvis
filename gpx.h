@@ -13,6 +13,7 @@ namespace gpx {
 
 extern void projectMercator(double lon, double lat, double& x, double&y);
 extern void unprojectMercator(double x, double y, double& lon, double& lat);
+extern double getProjectionScale(double lat);
 
 struct TPoint {
 	double lon;

@@ -31,6 +31,11 @@ extern void unprojectMercator(double x, double y, double& lon, double& lat)
 	lat = lat * 180.0 / M_PI;
 }
 
+extern double getProjectionScale(double lat)
+{
+	return cos(lat * M_PI / 180.0);
+}
+
 CTrack::CTrack() :
 	internalID(0)
 {
@@ -164,10 +169,10 @@ bool CTrack::Load(const char *filename)
 	}
 
 	double geoCenter[3];
-	if (aabbLonLat.GetCenter(geoCenter)) {
-		projectionScale = cos(geoCenter[1] * M_PI / 180.0);
-	}
 	projectionScale = 0.0;
+	if (aabbLonLat.GetCenter(geoCenter)) {
+		projectionScale = getProjectionScale(geoCenter[1]);
+	}
 
 	for (size_t i=1;  i < points.size(); i++) {
 		TPoint& A = points[i-1];
@@ -175,7 +180,7 @@ bool CTrack::Load(const char *filename)
 		double dx = B.x - A.x;
 		double dy = B.y - A.y;
 		// estimate scale for each line segment separately
-		double pScale = cos((0.5 * A.lat + 0.5 * B.lat) * M_PI / 180.0);
+		double pScale = getProjectionScale(0.5 * A.lat + 0.5 * B.lat);
 		A.len = sqrt(dx*dx + dy*dy) * pScale;
 		projectionScale += pScale;
 		totalLen += A.len;

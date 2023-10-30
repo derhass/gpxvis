@@ -241,7 +241,8 @@ class CAnimController {
 		bool ReverseTrackOrder();
 		bool RemoveDuplicateTracks();
 
-		const gpxutil::CAABB GetAABB() const {return aabb;}
+		const gpxutil::CAABB& GetDataAABB() const {return aabb;}
+		const gpxutil::CAABB& GetScreenAABB() const {return screenAABB;}
 
 	private:
 		typedef enum {
@@ -279,6 +280,7 @@ class CAnimController {
 
 		CVis  vis;
 		gpxutil::CAABB aabb;
+		gpxutil::CAABB screenAABB;
 		std::vector<gpx::CTrack> tracks;
 		gpxutil::CInternalIDGenerator<size_t> trackIDManager;
 

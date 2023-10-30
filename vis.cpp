@@ -781,6 +781,9 @@ bool CAnimController::AddTrack(const char *filename)
 bool CAnimController::Prepare(GLsizei width, GLsizei height)
 {
 	prepared = false;
+
+	aabb.Reset();
+	screenAABB.Reset();
 	if (tracks.size() < 1) {
 		gpxutil::warn("anim controller without tracks");
 		return false;
@@ -788,7 +791,6 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 
 	double totalLen = 0.0;
 	double totalDur = 0.0;
-	aabb.Reset();
 	for(size_t i=0; i<tracks.size(); i++) {
 		aabb.MergeWith(tracks[i].GetAABB());
 		totalLen += tracks[i].GetLength();
@@ -802,7 +804,7 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 	gpxutil::durationToString(totalDur, tbuf, sizeof(tbuf));
 	allTrackDurationString = tbuf;
 
-	gpxutil::CAABB screenAABB = aabb;
+	screenAABB = aabb;
 	screenAABB.Enhance(1.05,0.0);
 	screenAABB.GetNormalizeScaleOffset(scale, offset);
 	double dataAspect = screenAABB.GetAspect();
