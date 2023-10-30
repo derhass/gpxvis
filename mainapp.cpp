@@ -1021,16 +1021,15 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (ImGui::TreeNodeEx("View Transformation", 0)) {
 		double mPos[2];
 		double tPos[2];
-		double cPos[3];
 		double lPos[2];
+		const double *sPos = animCtrl.GetAvgStartPos();
 		mPos[0] = (double)app->mousePosMain[0];
 		mPos[1] = (double)app->mousePosMain[1];
 		animCtrl.GetScreenAABB().InterpolateNormalized2D(mPos, tPos);
-		animCtrl.GetScreenAABB().GetCenter(cPos);
 		gpx::unprojectMercator(tPos[0],tPos[1],lPos[0],lPos[1]);
 		double projectionScale = gpx::getProjectionScale(lPos[1]);
-		tPos[0] = (tPos[0] - cPos[0]) * projectionScale;
-		tPos[1] = (tPos[1] - cPos[1]) * projectionScale;
+		tPos[0] = (tPos[0] - sPos[0]) * projectionScale;
+		tPos[1] = (tPos[1] - sPos[1]) * projectionScale;
 		ImGui::Text("mouse position (normalized): (%f %f)", app->mousePosMain[0], app->mousePosMain[1]);
 		ImGui::Text("mouse position (distance [km]): (%.3f %.3f) %.3f", tPos[0], tPos[1], sqrt(tPos[0]*tPos[0] + tPos[1]*tPos[1]));
 		ImGui::Text("mouse position (lon/lat): (%.6f %.6f)", lPos[0], lPos[1]);

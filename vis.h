@@ -226,6 +226,7 @@ class CAnimController {
 		float GetCurrentFadeRatio() const {return curFadeRatio;}
 		void SetCurrentFadeRatio(float v) {curFadeRatio = v; curFadeTime = curFadeRatio * animCfg.fadeoutTime; }
 
+		const double* GetAvgStartPos() const {return avgStart;}
 		double GetAllTrackLength() const {return allTrackLength;}
 		double GetAllTrackDuration() const {return allTrackDuration;}
 		const char* GetAllTrackDurationString() const {return allTrackDurationString.c_str();}
@@ -274,6 +275,7 @@ class CAnimController {
 
 		double        offset[3];
 		double        scale[3];
+		double        avgStart[3];
 		double        allTrackLength;
 		double        allTrackDuration;
 		std::string   allTrackDurationString;

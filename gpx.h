@@ -42,6 +42,7 @@ class CTrack {
 		double GetLength() const {return totalLen;}
 		double GetDuration() const {return totalDuration;}
 
+		const std::vector<TPoint>& GetPoints() const {return points;}
 		float  GetPointByIndex(double idx) const;
 		float  GetPointByDistance(double distance) const;
 		float  GetPointByDuration(double duration) const;

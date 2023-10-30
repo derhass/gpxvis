@@ -763,6 +763,7 @@ CAnimController::CAnimController() :
 	allTrackLength(0.0),
 	allTrackDuration(0.0)
 {
+	avgStart[0] = avgStart[1] = avgStart[2] = 0.0;
 }
 
 bool CAnimController::AddTrack(const char *filename)
@@ -784,6 +785,7 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 
 	aabb.Reset();
 	screenAABB.Reset();
+	avgStart[0] = avgStart[1] = avgStart[2] = 0.0;
 	if (tracks.size() < 1) {
 		gpxutil::warn("anim controller without tracks");
 		return false;
@@ -795,6 +797,17 @@ bool CAnimController::Prepare(GLsizei width, GLsizei height)
 		aabb.MergeWith(tracks[i].GetAABB());
 		totalLen += tracks[i].GetLength();
 		totalDur += tracks[i].GetDuration();
+		const std::vector<gpx::TPoint>& points = tracks[i].GetPoints();
+		if (points.size() > 0) {
+			avgStart[0] += points[0].x;
+			avgStart[1] += points[0].y;
+			avgStart[2] += points[0].h;
+		}
+	}
+	if (tracks.size() > 0) {
+		avgStart[0] /= tracks.size();
+		avgStart[1] /= tracks.size();
+		avgStart[2] /= tracks.size();
 	}
 	gpxutil::info("have %llu tracks, total lenght: %f, total duration: %f",
 		(unsigned long long)tracks.size(), totalLen, totalDur);
