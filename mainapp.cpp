@@ -722,6 +722,40 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		ImGui::Text("length: %.1fkm", animCtrl.GetAllTrackLength());
 		ImGui::TableNextColumn();
 		ImGui::Text("duration: %s", animCtrl.GetAllTrackDurationString());
+		const gpxutil::CAABB& dataAABB = animCtrl.GetDataAABB();
+		double rSize[3];
+		if (dataAABB.IsValid()) {
+			double cPos[2];
+			double lPos[2];
+			double scl[2];
+			const double *data = dataAABB.Get();
+			dataAABB.GetCenter(cPos);
+			gpx::unprojectMercator(cPos[0],cPos[1],lPos[0],lPos[1]);
+			double projectionScale = gpx::getProjectionScale(lPos[1]);
+			rSize[0] = (data[3] - data[0]) * projectionScale;
+			rSize[1] = (data[4] - data[1]) * projectionScale;
+			gpx::unprojectMercator(data[0],data[1],lPos[0],lPos[1]);
+			scl[0] = gpx::getProjectionScale(lPos[1]);
+			gpx::unprojectMercator(data[3],data[4],lPos[0],lPos[1]);
+			scl[1] = gpx::getProjectionScale(lPos[1]);
+			if (scl[0] > scl[1]) {
+				double tmp = scl[0];
+				scl[0] = scl[1];
+				scl[1] = tmp;
+			}
+			printf("XXXX %e %e\n",scl[0],scl[1]);
+			rSize[2] = 100.0 * (scl[1] / scl[0] - 1.0);
+		} else {
+			rSize[0] = 0.0;
+			rSize[1] = 0.0;
+			rSize[2] = 0.0;
+		}
+		ImGui::TableNextColumn();
+		ImGui::Text("region width: %.1fkm", rSize[0]);
+		ImGui::TableNextColumn();
+		ImGui::Text("region height: %.1fkm", rSize[1]);
+		ImGui::TableNextColumn();
+		ImGui::Text("scale variation: %.2f%%", rSize[2]);
 		ImGui::EndTable();
 	}
 	ImGui::EndDisabled();

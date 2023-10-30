@@ -33,6 +33,11 @@ extern void unprojectMercator(double x, double y, double& lon, double& lat)
 
 extern double getProjectionScale(double lat)
 {
+	if (lat > 89.9) {
+		lat = 89.9;
+	} else if (lat < -89.9) {
+		lat = -89.9;
+	}
 	return cos(lat * M_PI / 180.0);
 }
 
