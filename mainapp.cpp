@@ -46,6 +46,7 @@ struct AppConfig {
 	bool exitAfterOutputFrames;
 	int switchTo;
 	const char *outputFrames;
+	const char *outputStats;
 
 	AppConfig() :
 		posx(100),
@@ -64,7 +65,8 @@ struct AppConfig {
 #endif
 		exitAfterOutputFrames(true),
 		switchTo(0),
-		outputFrames(NULL)
+		outputFrames(NULL),
+		outputStats(NULL)
 	{
 #ifndef NDEBUG
 		debugOutputLevel = DEBUG_OUTPUT_ERRORS_ONLY;
@@ -619,12 +621,15 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 		app->animCtrl.SwitchToTrack(idx);
 	}
 
-	// TODO ...
+	// initialize the animation controller
 	if (!app->animCtrl.Prepare(app->width,app->height)) {
 		gpxutil::warn("failed to initialize animation controller");
 		if (cfg.outputFrames) {
 			return false;
 		}
+	}
+	if (cfg.outputStats) {
+		app->animCtrl.StatsToCSV(cfg.outputStats);
 	}
 
 	/* initialize the timer */
@@ -1829,6 +1834,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)strtol(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--switch-to")) {
 					cfg.switchTo = (int)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--output-stats")) {
+					cfg.outputStats = argv[++i];
 				} else {
 					unhandled = true;
 				}

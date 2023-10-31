@@ -242,6 +242,8 @@ class CAnimController {
 		bool ReverseTrackOrder();
 		bool RemoveDuplicateTracks();
 
+		bool StatsToCSV(const char *filename) const;
+
 		const gpxutil::CAABB& GetDataAABB() const {return aabb;}
 		const gpxutil::CAABB& GetScreenAABB() const {return screenAABB;}
 

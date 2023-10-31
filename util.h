@@ -3,6 +3,7 @@
 
 #include <glad/gl.h>
 #include <stddef.h>
+#include <stdio.h>
 
 /* define mysnprintf to be either snprintf (POSIX) or sprintf_s (MS Windows) */
 #ifdef WIN32
@@ -165,14 +166,17 @@ extern GLsizei roundNextMultiple(GLsizei value, GLsizei base);
 /* get duration in human-readable string format */
 extern bool durationToString(double seconds, char *buffer, size_t bufSize);
 
-#ifdef WIN32
 /****************************************************************************
  * WINDOWS WIDE STRING <-> UTF8                                             *
  ****************************************************************************/
 
+#ifdef WIN32
 extern std::string wideToUtf8(const std::wstring& data);
 extern std::wstring utf8ToWide(const std::string& data);
 #endif // WIN32
+
+// on windows, we use UTF8 strings, but window's wide char APIs
+extern FILE* fopen_wrapper(const char *filename, const char *mode);
 
 } // namespace gpxutil
 #endif // GPXVIS_UTIL_H

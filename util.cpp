@@ -521,5 +521,17 @@ extern std::wstring utf8ToWide(const std::string& data)
 
 #endif // WIN32
 
+extern FILE* fopen_wrapper(const char *filename, const char *mode)
+{
+#ifdef WIN32
+	std::wstring filename_wide = gpxutil::utf8ToWide(std::string(filename));
+	std::wstring mode_wide = gpxutil::utf8ToWide(std::string(mode));
+	FILE *file = NULL;
+	_wfopen_s(&file, filename_wide.c_str(), mode_wide.c_str());
+#else
+	FILE *file = fopen(filename, mode);
+#endif
+	return file;
+}
 
 } // namespace gpxutil

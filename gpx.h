@@ -56,6 +56,8 @@ class CTrack {
 		const char* GetDurationString() const {return durationStr.c_str();}
 
 		time_t GetStartTimestamp() const;
+		static void GetStatLineHeader(char *buf, size_t bufSize, const char *separator="\t", const char *prefix="", const char *suffix="\n");
+		void GetStatLine(char *buf, size_t bufSize, const char *separator="\t", const char *prefix="", const char *suffix="\n") const;
 
 		void   SetInternalID(size_t id) {internalID = id;}
 		size_t GetIntenalID() const {return internalID;}

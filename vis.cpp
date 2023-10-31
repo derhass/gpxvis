@@ -1,6 +1,7 @@
 #include "vis.h"
 
 #include <algorithm>
+#include <stdio.h>
 #include <string.h>
 
 #include "util.h"
@@ -1351,6 +1352,36 @@ bool CAnimController::RemoveDuplicateTracks()
 		tracks.resize(newCnt);
 	}
 	return RestoreCurrentTrack(curId);
+}
+
+bool CAnimController::StatsToCSV(const char *filename) const
+{
+	char buf[4096];
+	bool success = true;
+
+	FILE *file = gpxutil::fopen_wrapper(filename, "wt");
+	if (!file) {
+		gpxutil::warn("failed to open \"%s\" for writing", filename);
+		return false;
+	}
+	gpx::CTrack::GetStatLineHeader(buf, sizeof(buf));
+	if (fputs(buf, file) == EOF) {
+		success = false;
+	}
+	const size_t cnt = tracks.size();
+	for (size_t i=0; i<cnt; i++) {
+		tracks[i].GetStatLine(buf, sizeof(buf));
+		if (fputs(buf, file) == EOF) {
+			success = false;
+		}
+	}
+	fclose(file);
+	if (success) {
+		gpxutil::info("wrote stats to \"%s\"", filename);
+	} else {
+		gpxutil::warn("I/O error writing stats to \"%s\"", filename);
+	}
+	return success;
 }
 
 } // namespace gpxvis

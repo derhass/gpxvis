@@ -100,13 +100,7 @@ static time_t getTime(const char *str)
 
 bool CTrack::Load(const char *filename)
 {
-#ifdef WIN32
-	std::wstring filename_wide = gpxutil::utf8ToWide(std::string(filename));
-	FILE *file = NULL;
-	_wfopen_s(&file, filename_wide.c_str(), L"rt");
-#else
-	FILE *file = fopen(filename, "rt");
-#endif
+	FILE *file = gpxutil::fopen_wrapper(filename, "rt");
 	if(!file) {
 		gpxutil::warn("gpx file '%s' can't be opened", filename);
 		return false;
@@ -398,6 +392,68 @@ time_t CTrack::GetStartTimestamp() const
 		return points[0].timestamp;
 	}
 	return (time_t)0;
+}
+
+void CTrack::GetStatLineHeader(char *buf, size_t bufSize, const char *separator, const char *prefix, const char *suffix)
+{
+	if (!buf || bufSize < 1) {
+		return;
+	}
+	if (!separator) {
+		separator = "";
+	}
+	if (!prefix) {
+		prefix = "";
+	}
+	if (!suffix) {
+		suffix = "";
+	}
+
+	mysnprintf(buf, bufSize, "%syear%smonth%sday%sdistance%sduration%s",
+		prefix,
+		separator,
+		separator,
+		separator,
+		separator,
+		suffix);
+	buf[bufSize-1] = 0;
+}
+
+void CTrack::GetStatLine(char *buf, size_t bufSize, const char *separator, const char *prefix, const char *suffix) const
+{
+	if (!buf || bufSize < 1) {
+		return;
+	}
+	if (!separator) {
+		separator = "";
+	}
+	if (!prefix) {
+		prefix = "";
+	}
+	if (!suffix) {
+		suffix = "";
+	}
+
+	if (points.size() > 0) {
+		struct tm *tm;
+		time_t start = GetStartTimestamp();
+		tm = localtime(&start);
+		mysnprintf(buf, bufSize, "%s%04d%s%02d%s%02d%s%.3f%s%.3f%s",
+			prefix,
+			tm->tm_year+1900,
+			separator,
+			tm->tm_mon+1,
+			separator,
+			tm->tm_mday,
+			separator,
+			GetLength(),
+			separator,
+			GetDuration(),
+			suffix);
+	} else {
+		buf[0] = 0;
+	}
+	buf[bufSize-1] = 0;
 }
 
 bool EarlierThan(const CTrack& a, const CTrack& b)
