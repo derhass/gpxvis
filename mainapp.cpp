@@ -748,7 +748,6 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 				scl[0] = scl[1];
 				scl[1] = tmp;
 			}
-			printf("XXXX %e %e\n",scl[0],scl[1]);
 			rSize[2] = 100.0 * (scl[1] / scl[0] - 1.0);
 		} else {
 			rSize[0] = 0.0;
