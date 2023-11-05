@@ -122,6 +122,13 @@ typedef struct {
 	std::string outputPrefix;
 	std::string outputFilename;
 #endif
+
+	/* selection */
+	double selectedTrackPos[2];
+	double selectedProjectionScale;
+	float selectRadiusMeter;
+	std::vector<gpxvis::TTrackDist> closeTracks;
+	bool showInfoWindow;
 } MainApp;
 
 /* flags */
@@ -429,6 +436,7 @@ static void processInputs(MainApp *app)
 	gpxvis::CVis& vis = animCtrl.GetVis();
 	gpxvis::CVis::TConfig& visCfg = vis.GetConfig();
 	int leftButton = glfwGetMouseButton(app->win, GLFW_MOUSE_BUTTON_LEFT);
+	int rightButton = glfwGetMouseButton(app->win, GLFW_MOUSE_BUTTON_RIGHT);
 	if  (leftButton == GLFW_PRESS) {
 		if (app->isDragging) {
 			GLfloat delta[2];
@@ -446,6 +454,16 @@ static void processInputs(MainApp *app)
 		}
 	} else {
 		app->isDragging = false;
+	}
+	if (rightButton == GLFW_PRESS) {
+		double lPos[2];
+		app->selectedTrackPos[0] = app->mousePosTrack[0];
+		app->selectedTrackPos[1] = app->mousePosTrack[1];
+		gpx::unprojectMercator(app->mousePosTrack[0],app->mousePosTrack[1],lPos[0],lPos[1]);
+		app->selectedProjectionScale = gpx::getProjectionScale(lPos[1]);
+		double radius = (app->selectRadiusMeter / 1000.0) / app->selectedProjectionScale;
+		animCtrl.GetTracksAt(app->selectedTrackPos[0],app->selectedTrackPos[1],radius,app->closeTracks);
+		app->showInfoWindow = true;
 	}
 }
 
@@ -550,6 +568,11 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->isDragging = false;
 	app->mousePosDragStart[0] = 0.0f;
 	app->mousePosDragStart[1] = 0.0f;
+	app->selectedTrackPos[0] = 0.0;
+	app->selectedTrackPos[1] = 0.0;
+	app->selectedProjectionScale = 1.0;
+	app->selectRadiusMeter = 10.0f;
+	app->showInfoWindow = false;
 
 	if (!monitor) {
 		glfwSetWindowPos(app->win, x, y);
@@ -632,6 +655,10 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 			return false;
 		}
 	}
+	const double *p = app->animCtrl.GetAvgStartPos();
+	app->selectedTrackPos[0] = p[0];
+	app->selectedTrackPos[1] = p[1];
+
 	if (cfg.outputStats) {
 		app->animCtrl.StatsToCSV(cfg.outputStats);
 	}
@@ -924,12 +951,13 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 {
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + main_viewport->Size.x - 640, main_viewport->WorkPos.y+0), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(640, 20 * ImGui::GetTextLineHeightWithSpacing()), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(640, 0), ImGuiCond_FirstUseEver);
 	if (!ImGui::Begin("Info Window", isOpen)) {
 		ImGui::End();
 	}
 	double xPos[2];
 	double tPos[2];
+	double dPos[2];
 	double lPos[2];
 	const double *sPos = animCtrl.GetAvgStartPos();
 	xPos[0] = app->mousePosTrack[0];
@@ -938,6 +966,8 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 	double projectionScale = gpx::getProjectionScale(lPos[1]);
 	tPos[0] = (xPos[0] - sPos[0]) * projectionScale;
 	tPos[1] = (xPos[1] - sPos[1]) * projectionScale;
+	dPos[0] = (xPos[0] - app->selectedTrackPos[0]) * projectionScale;
+	dPos[1] = (xPos[1] - app->selectedTrackPos[1]) * projectionScale;
 
 	if (ImGui::TreeNodeEx("Cursor Position", ImGuiTreeNodeFlags_DefaultOpen)) {
 		if (ImGui::BeginTable("infoSplit", 2)) {
@@ -950,6 +980,10 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 			ImGui::TableNextColumn();
 			ImGui::Text("(%.3f %.3f) %.3f", tPos[0], tPos[1], sqrt(tPos[0]*tPos[0] + tPos[1]*tPos[1]));
 			ImGui::TableNextColumn();
+			ImGui::Text("distance to selected [km]:");
+			ImGui::TableNextColumn();
+			ImGui::Text("(%.3f %.3f) %.3f", dPos[0], dPos[1], sqrt(dPos[0]*dPos[0] + dPos[1]*dPos[1]));
+			ImGui::TableNextColumn();
 			ImGui::Text("lon/lat:");
 			ImGui::TableNextColumn();
 			ImGui::Text("(%.6f %.6f)", lPos[0], lPos[1]);
@@ -957,20 +991,19 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 		ImGui::TreePop();
 	}
-	if (ImGui::TreeNodeEx("Closest tracks", 0)) {
+	if (ImGui::TreeNodeEx("Closest tracks", ImGuiTreeNodeFlags_DefaultOpen)) {
 		const std::vector<gpx::CTrack>& tracks = animCtrl.GetTracks();
-		std::vector<gpxvis::TTrackDist> closeTracks;
-		static float radiusMeter = 10.0;
 
-		ImGui::SliderFloat("radius", &radiusMeter, 0.1f, 1000.0f, "%.01fm", ImGuiSliderFlags_Logarithmic);
-		double radius = (radiusMeter / 1000.0) / projectionScale;
-		animCtrl.GetTracksAt(xPos[0],xPos[1],radius,closeTracks);
-		ImGui::Text("found %llu tracks", (unsigned long long)closeTracks.size());
+		if (ImGui::SliderFloat("radius", &app->selectRadiusMeter, 0.1f, 1000.0f, "%.01fm", ImGuiSliderFlags_Logarithmic)) {
+			double radius = (app->selectRadiusMeter / 1000.0) / projectionScale;
+			animCtrl.GetTracksAt(app->selectedTrackPos[0],app->selectedTrackPos[1],radius,app->closeTracks);
+		}
+		ImGui::Text("found %llu tracks", (unsigned long long)app->closeTracks.size());
 		if (ImGui::BeginListBox("Closest Tracks", ImVec2(-FLT_MIN,  10 * ImGui::GetTextLineHeightWithSpacing()))) {
-		for (size_t i=0; i<closeTracks.size(); i++) {
+		for (size_t i=0; i<app->closeTracks.size(); i++) {
 			char info[512];
-			size_t j = closeTracks[i].idx;
-			mysnprintf(info, sizeof(info), "%d. %.03fm %s [%s] %.1fkm %s", (int)(i+1), closeTracks[i].d * projectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
+			size_t j = app->closeTracks[i].idx;
+			mysnprintf(info, sizeof(info), "%d. %.03fm %s [%s] %.1fkm %s", (int)(i+1), app->closeTracks[i].d * projectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
 			ImGui::TextUnformatted(info);
 		}
 		ImGui::EndListBox();
@@ -987,7 +1020,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	bool modifiedTransform = false;
 	static bool first  = true;
 	static bool showTrackManager = false;
-	static bool showInfoWindow = false;
 
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
@@ -1065,7 +1097,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Info Window", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			showInfoWindow = !showInfoWindow;
+			app->showInfoWindow = !app->showInfoWindow;
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Quit", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1654,8 +1686,8 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (showTrackManager) {
 		drawTrackManager(app, animCtrl, vis, &showTrackManager);
 	}
-	if (showInfoWindow) {
-		drawInfoWindow(app, animCtrl, vis, &showInfoWindow);
+	if (app->showInfoWindow) {
+		drawInfoWindow(app, animCtrl, vis, &app->showInfoWindow);
 	}
 
 	if (app->fileDialog && app->fileDialog->Visible()) {
