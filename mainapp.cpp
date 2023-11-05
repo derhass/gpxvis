@@ -1003,7 +1003,7 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		for (size_t i=0; i<app->closeTracks.size(); i++) {
 			char info[512];
 			size_t j = app->closeTracks[i].idx;
-			mysnprintf(info, sizeof(info), "%d. %.03fm %s [%s] %.1fkm %s", (int)(i+1), app->closeTracks[i].d * projectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
+			mysnprintf(info, sizeof(info), "%d. %.1fm %s [%s] %.1fkm %s", (int)(i+1), app->closeTracks[i].d * app->selectedProjectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
 			ImGui::TextUnformatted(info);
 		}
 		ImGui::EndListBox();
