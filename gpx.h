@@ -28,6 +28,15 @@ struct TPoint {
 	time_t timestamp;
 };
 
+struct TLineSegment {
+	size_t idx[2];
+	double dir[2];
+	double n[2];
+	double d[2];
+	double len;
+	double invLen;
+};
+
 class CTrack {
 	public:
 		CTrack();
@@ -62,19 +71,25 @@ class CTrack {
 		void   SetInternalID(size_t id) {internalID = id;}
 		size_t GetIntenalID() const {return internalID;}
 
+		double GetDistanceSqrTo(double x, double y) const;
+
 	private:
-		std::vector<TPoint> points;
-		gpxutil::CAABB      aabb;
-		gpxutil::CAABB      aabbLonLat;
-		double              totalLen;
-		double              totalDuration;
-		double              projectionScale;
-		size_t              internalID;
+		std::vector<TPoint>       points;
+		std::vector<TLineSegment> lineSegments;
+		gpxutil::CAABB            aabb;
+		gpxutil::CAABB            aabbLonLat;
+		double                    totalLen;
+		double                    totalDuration;
+		double                    projectionScale;
+		size_t                    internalID;
 		std::string fullFilename;
 		std::string info;
 		std::string durationStr;
 
 		friend bool IsEqual(const CTrack& a, const CTrack& b);
+		
+		void CalculateLineSegment(TLineSegment& ls, size_t idxA, size_t idxB) const;
+		void CalculateLineSegments();
 };
 
 bool EarlierThan(const CTrack& a, const CTrack& b);

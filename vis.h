@@ -11,6 +11,15 @@
 namespace gpxvis {
 
 /****************************************************************************
+ * HELPER TYPE FOR TRACK DISTANCES                                          *
+ ****************************************************************************/
+
+struct TTrackDist {
+	double d;
+	size_t idx;
+};
+
+/****************************************************************************
  * VISUALIZE A SINGLE POLYGON, MIX IT WITH THE HISTORY                      *
  ****************************************************************************/
 
@@ -243,6 +252,8 @@ class CAnimController {
 		bool RemoveDuplicateTracks();
 
 		bool StatsToCSV(const char *filename) const;
+
+		void GetTracksAt(double x, double y, double radius, std::vector<TTrackDist>& indices) const;
 
 		const gpxutil::CAABB& GetDataAABB() const {return aabb;}
 		const gpxutil::CAABB& GetScreenAABB() const {return screenAABB;}

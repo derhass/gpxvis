@@ -1,6 +1,7 @@
 #include "vis.h"
 
 #include <algorithm>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -310,6 +311,10 @@ bool CVis::InitializeUBO(int i)
 			}
 			gpxutil::info("render aspect ratios %f %f, correction %f %f",
 				screenAspect, dataAspect, tscale[0], tscale[1]);
+			/*
+			tscale[0]=1.0;
+			tscale[1]=1.0;
+			*/
 			scaleOffset[0] = 2.0f * tscale[0];
 			scaleOffset[1] = 2.0f * tscale[1];
 			scaleOffset[2] =-1.0f * tscale[0];
@@ -1382,6 +1387,29 @@ bool CAnimController::StatsToCSV(const char *filename) const
 		gpxutil::warn("I/O error writing stats to \"%s\"", filename);
 	}
 	return success;
+}
+
+static bool CloserThan(const TTrackDist& a, const TTrackDist& b)
+{
+	return (a.d < b.d);
+}
+
+void CAnimController::GetTracksAt(double x, double y, double radius, std::vector<TTrackDist>& indices) const
+{
+	size_t cnt = tracks.size();
+	const double r2 = radius*radius;
+
+	indices.clear();
+	for (size_t i=0; i<cnt; i++) {
+		double d2 = tracks[i].GetDistanceSqrTo(x,y);
+		if (d2 <= r2) {
+			TTrackDist td;
+			td.idx = i;
+			td.d = sqrt(d2);
+			indices.push_back(td);
+		}
+	}
+	std::sort(indices.begin(),indices.end(), CloserThan);
 }
 
 } // namespace gpxvis

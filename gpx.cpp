@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <float.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -162,6 +163,8 @@ bool CTrack::Load(const char *filename)
 	}
 	free(source);
 
+	CalculateLineSegments();
+
 	if (points.size() < 2) {
 		gpxutil::warn("gpx file '%s': contains no track, only %u points found", filename, (unsigned)points.size());
 		return false;
@@ -216,9 +219,52 @@ bool CTrack::Load(const char *filename)
 	return true;
 }
 
+void CTrack::CalculateLineSegment(TLineSegment& ls, size_t idxA, size_t idxB) const
+{
+	const TPoint& A=points[idxA];
+	const TPoint& B=points[idxB];
+
+	ls.idx[0] = idxA;
+	ls.idx[1] = idxB;
+	ls.dir[0] = B.x - A.x;
+	ls.dir[1] = B.y - A.y;
+	ls.len = ls.dir[0] * ls.dir[0] + ls.dir[1] * ls.dir[1];
+	if (ls.len < 1.0e-6) {
+		ls.len = 0.0;
+		ls.invLen = 1.0;
+		ls.n[0] = 1.0;
+		ls.n[1] = 0.0;
+	} else {
+		ls.len = sqrt(ls.len);
+		ls.invLen = 1.0 / ls.len;
+		ls.n[0] = ls.dir[0] / ls.len;
+		ls.n[1] = ls.dir[1] / ls.len;
+	}
+	ls.d[0] = A.x * ls.n[0] + A.y * ls.n[1];
+	ls.d[1] = B.x * ls.n[0] + B.y * ls.n[1];
+}
+
+void CTrack::CalculateLineSegments()
+{
+	size_t cnt = points.size();
+	if (cnt < 1) {
+		lineSegments.clear();
+	} else if (cnt == 1) {
+		lineSegments.resize(cnt);
+		CalculateLineSegment(lineSegments[0],0,0);
+	} else {
+		cnt--;
+		lineSegments.resize(cnt);
+		for (size_t i=0; i<cnt; i++) {
+			CalculateLineSegment(lineSegments[i],i,i+1);
+		}
+	}
+}
+
 void CTrack::Reset()
 {
 	points.clear();
+	lineSegments.clear();
 	aabb.Reset();
 	aabbLonLat.Reset();
 	totalLen = 0.0;
@@ -454,6 +500,40 @@ void CTrack::GetStatLine(char *buf, size_t bufSize, const char *separator, const
 		buf[0] = 0;
 	}
 	buf[bufSize-1] = 0;
+}
+
+double CTrack::GetDistanceSqrTo(double x, double y) const
+{
+	double dx,dy;
+	size_t cnt = lineSegments.size();
+	double distSqr = DBL_MAX;
+	for (size_t i=0; i<cnt; i++) {
+		const TLineSegment& ls = lineSegments[i];
+		const double d = x*ls.n[0] + y*ls.n[1];
+		if (d <= ls.d[0]) {
+			dx = x - points[ls.idx[0]].x;
+			dy = y - points[ls.idx[0]].y;
+		} else if (d >= ls.d[1]) {
+			dx = x - points[ls.idx[1]].x;
+			dy = y -points[ls.idx[1]].y;
+		} else {
+			const double t = (d - ls.d[0]) * ls.invLen;
+			const TPoint& A = points[ls.idx[0]];
+			dx = x - (A.x + t * ls.dir[0]);
+			dy = y - (A.y + t * ls.dir[1]);
+		}
+		const double v = dx * dx + dy * dy;
+		if (v < distSqr) {
+			distSqr = v;
+		}
+		if (1) {
+			const TPoint& A = points[ls.idx[0]];
+			const TPoint& B = points[ls.idx[1]];
+			printf("XXX %f %f  %f %f  %f %f  %f\n",
+					A.x,A.y,B.x,B.y,x,y,v);
+		}
+	}
+	return distSqr;
 }
 
 bool EarlierThan(const CTrack& a, const CTrack& b)
