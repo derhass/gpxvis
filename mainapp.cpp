@@ -987,7 +987,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	bool modifiedTransform = false;
 	static bool first  = true;
 	static bool showTrackManager = false;
-	static bool showInfoWindow = true;
+	static bool showInfoWindow = false;
 
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
