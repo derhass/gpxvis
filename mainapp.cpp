@@ -280,7 +280,7 @@ static void windowToMainFramebufferNormalized(const MainApp* app, const double p
 
 	/* transform to actual position considering the current transformation */
 	vis.TransformToPos(posView, posMain);
-	app->animCtrl.TransformToPos(posView, posTrack);
+	app->animCtrl.TransformToPos(posMain, posTrack);
 }
 
 /****************************************************************************
