@@ -106,6 +106,7 @@ typedef struct {
 	/* input state */
 	double mousePosWin[2];
 	GLfloat mousePosMain[2];
+	double mousePosTrack[2];
 	bool isDragging;
         GLfloat mousePosDragStart[2];
 
@@ -265,9 +266,9 @@ static void updateMainFramebufferCoords(MainApp* app)
 }
 
 /* transform a window coordinate into the default framebuffer coord of the window */
-static void windowToMainFramebufferNormalized(const MainApp* app, const double pWin[2], GLfloat posView[2], GLfloat posTrack[2])
+static void windowToMainFramebufferNormalized(const MainApp* app, const double pWin[2], GLfloat posView[2], GLfloat posMain[2], double posTrack[2])
 {
-	const gpxvis::CVis& vis = app->animCtrl.GetVis();
+	const gpxvis::CVis& vis=app->animCtrl.GetVis();
 
 	/* transform to default framebuffer */
 	posView[0] = (GLfloat)(pWin[0] * app->winToPixel[0]);
@@ -278,7 +279,8 @@ static void windowToMainFramebufferNormalized(const MainApp* app, const double p
 	posView[1] = (posView[1] - (GLfloat) app->mainHeightOffset) / (GLfloat)app->mainHeight;
 
 	/* transform to actual position considering the current transformation */
-	vis.TransformToPos(posView, posTrack);
+	vis.TransformToPos(posView, posMain);
+	app->animCtrl.TransformToPos(posView, posTrack);
 }
 
 /****************************************************************************
@@ -418,7 +420,7 @@ static void processInputs(MainApp *app)
 {
 	GLfloat posView[2];
 	glfwGetCursorPos(app->win, &app->mousePosWin[0], &app->mousePosWin[1]);
-	windowToMainFramebufferNormalized(app, app->mousePosWin, posView, app->mousePosMain);
+	windowToMainFramebufferNormalized(app, app->mousePosWin, posView, app->mousePosMain, app->mousePosTrack);
 	if (!isOurInput(app, true)) {
 		return;
 	}
@@ -543,6 +545,8 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->mousePosWin[1] = 0.0f;
 	app->mousePosMain[0] = 0.0f;
 	app->mousePosMain[1] = 1.0f;
+	app->mousePosTrack[0] = 0.0f;
+	app->mousePosTrack[1] = 0.0f;
 	app->isDragging = false;
 	app->mousePosDragStart[0] = 0.0f;
 	app->mousePosDragStart[1] = 0.0f;
@@ -920,18 +924,16 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 {
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + main_viewport->Size.x - 640, main_viewport->WorkPos.y+0), ImGuiCond_FirstUseEver);
-	ImGui::SetNextWindowSize(ImVec2(640, 10 * ImGui::GetTextLineHeightWithSpacing()), ImGuiCond_FirstUseEver);
+	ImGui::SetNextWindowSize(ImVec2(640, 20 * ImGui::GetTextLineHeightWithSpacing()), ImGuiCond_FirstUseEver);
 	if (!ImGui::Begin("Info Window", isOpen)) {
 		ImGui::End();
 	}
-	double mPos[2];
 	double xPos[2];
 	double tPos[2];
 	double lPos[2];
 	const double *sPos = animCtrl.GetAvgStartPos();
-	mPos[0] = (double)app->mousePosMain[0];
-	mPos[1] = (double)app->mousePosMain[1];
-	animCtrl.GetScreenAABB().InterpolateNormalized2D(mPos, xPos);
+	xPos[0] = app->mousePosTrack[0];
+	xPos[1] = app->mousePosTrack[1];
 	gpx::unprojectMercator(xPos[0],xPos[1],lPos[0],lPos[1]);
 	double projectionScale = gpx::getProjectionScale(lPos[1]);
 	tPos[0] = (xPos[0] - sPos[0]) * projectionScale;
@@ -944,7 +946,7 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 			ImGui::TableNextColumn();
 			ImGui::Text("(%f %f)", app->mousePosMain[0], app->mousePosMain[1]);
 			ImGui::TableNextColumn();
-			ImGui::Text("distance [km]:");
+			ImGui::Text("distance to avg start [km]:");
 			ImGui::TableNextColumn();
 			ImGui::Text("(%.3f %.3f) %.3f", tPos[0], tPos[1], sqrt(tPos[0]*tPos[0] + tPos[1]*tPos[1]));
 			ImGui::TableNextColumn();
@@ -963,11 +965,12 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		ImGui::SliderFloat("radius", &radiusMeter, 0.1f, 1000.0f, "%.01fm", ImGuiSliderFlags_Logarithmic);
 		double radius = (radiusMeter / 1000.0) / projectionScale;
 		animCtrl.GetTracksAt(xPos[0],xPos[1],radius,closeTracks);
+		ImGui::Text("found %llu tracks", (unsigned long long)closeTracks.size());
 		if (ImGui::BeginListBox("Closest Tracks", ImVec2(-FLT_MIN,  10 * ImGui::GetTextLineHeightWithSpacing()))) {
 		for (size_t i=0; i<closeTracks.size(); i++) {
 			char info[512];
 			size_t j = closeTracks[i].idx;
-			mysnprintf(info, sizeof(info), "%d. %.03f %s [%s] %.1fkm %s", (int)(i+1), closeTracks[i].d * projectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
+			mysnprintf(info, sizeof(info), "%d. %.03fm %s [%s] %.1fkm %s", (int)(i+1), closeTracks[i].d * projectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
 			ImGui::TextUnformatted(info);
 		}
 		ImGui::EndListBox();

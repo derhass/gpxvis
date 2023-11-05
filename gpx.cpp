@@ -526,12 +526,6 @@ double CTrack::GetDistanceSqrTo(double x, double y) const
 		if (v < distSqr) {
 			distSqr = v;
 		}
-		if (1) {
-			const TPoint& A = points[ls.idx[0]];
-			const TPoint& B = points[ls.idx[1]];
-			printf("XXX %f %f  %f %f  %f %f  %f\n",
-					A.x,A.y,B.x,B.y,x,y,v);
-		}
 	}
 	return distSqr;
 }

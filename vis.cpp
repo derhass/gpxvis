@@ -1389,6 +1389,22 @@ bool CAnimController::StatsToCSV(const char *filename) const
 	return success;
 }
 
+void CAnimController::TransformToPos(const GLfloat posNormalized[2], double pos[2]) const
+{
+	GLfloat p[2];
+	vis.TransformToPos(posNormalized, p);
+	pos[0] = ((double)p[0]) / scale[0] + offset[0];
+	pos[1] = ((double)p[1]) / scale[1] + offset[1];
+}
+
+void CAnimController::TransformFromPos(const double pos[2], GLfloat posNormalized[2]) const
+{
+	GLfloat p[2];
+	p[0] = (GLfloat)((pos[0] - offset[0])* scale[0]);
+	p[1] = (GLfloat)((pos[1] - offset[1])* scale[1]);
+	vis.TransformFromPos(p, posNormalized);
+}
+
 static bool CloserThan(const TTrackDist& a, const TTrackDist& b)
 {
 	return (a.d < b.d);
