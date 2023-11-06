@@ -614,7 +614,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->withLabel = false;
 	app->exitAfter = false;
 	app->curTrackMgrIdx = 0;
-	app->firstMenuRun = 0;
+	app->firstMenuRun = true;
 #endif
 
 	app->selectedTrackPos[0] = 0.0;
