@@ -121,6 +121,19 @@ typedef struct {
 	std::string outputDir;
 	std::string outputPrefix;
 	std::string outputFilename;
+
+	/* further menu-controlled state */
+	bool showTrackManager;
+	bool showInfoWindow;
+	int timestepMode;
+	float fixedTimestep;
+	float speedup;
+	int renderSize[2];
+	bool forceFixedTimestep;
+	bool withLabel;
+	bool exitAfter;
+	size_t curTrackMgrIdx;
+	bool firstMenuRun;
 #endif
 
 	/* selection */
@@ -128,7 +141,8 @@ typedef struct {
 	double selectedProjectionScale;
 	float selectRadiusMeter;
 	std::vector<gpxvis::TTrackDist> closeTracks;
-	bool showInfoWindow;
+	bool closeTracksModeSynced;
+	gpxvis::CAnimController::TBackgroundMode closeTracksMode;
 } MainApp;
 
 /* flags */
@@ -326,6 +340,24 @@ static void doZoom(MainApp* app, float factor, float offset)
 }
 
 /****************************************************************************
+ * close tracks                                                             *
+ ****************************************************************************/
+
+static void updateCloseTracks(MainApp *app, bool onlyOnModeChange)
+{
+	if (app->closeTracksModeSynced) {
+		gpxvis::CAnimController::TBackgroundMode oldMode = app->closeTracksMode;
+		app->closeTracksMode = app->animCtrl.GetAnimConfig().historyMode;
+		if (onlyOnModeChange && (oldMode == app->closeTracksMode)) {
+			return;
+		}
+	}
+	double radius = (app->selectRadiusMeter / 1000.0) / app->selectedProjectionScale;
+	app->animCtrl.GetTracksAt(app->selectedTrackPos[0],app->selectedTrackPos[1],radius,app->closeTracks, app->closeTracksMode);
+}
+
+
+/****************************************************************************
  * WINDOW-RELATED CALLBACKS                                                 *
  ****************************************************************************/
 
@@ -461,9 +493,10 @@ static void processInputs(MainApp *app)
 		app->selectedTrackPos[1] = app->mousePosTrack[1];
 		gpx::unprojectMercator(app->mousePosTrack[0],app->mousePosTrack[1],lPos[0],lPos[1]);
 		app->selectedProjectionScale = gpx::getProjectionScale(lPos[1]);
-		double radius = (app->selectRadiusMeter / 1000.0) / app->selectedProjectionScale;
-		animCtrl.GetTracksAt(app->selectedTrackPos[0],app->selectedTrackPos[1],radius,app->closeTracks);
+		updateCloseTracks(app, false);
+#ifdef GPXVIS_WITH_IMGUI
 		app->showInfoWindow = true;
+#endif
 	}
 }
 
@@ -568,11 +601,29 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->isDragging = false;
 	app->mousePosDragStart[0] = 0.0f;
 	app->mousePosDragStart[1] = 0.0f;
+
+#ifdef GPXVIS_WITH_IMGUI
+	app->showTrackManager = false;
+	app->showInfoWindow = false;
+	app->timestepMode = 0;
+	app->fixedTimestep = 1000.0f/60.0f;
+	app->speedup = 1.0f;
+	app->renderSize[0] = -1;
+	app->renderSize[1] = -1;
+	app->forceFixedTimestep = true;
+	app->withLabel = false;
+	app->exitAfter = false;
+	app->curTrackMgrIdx = 0;
+	app->firstMenuRun = 0;
+#endif
+
 	app->selectedTrackPos[0] = 0.0;
 	app->selectedTrackPos[1] = 0.0;
 	app->selectedProjectionScale = 1.0;
-	app->selectRadiusMeter = 10.0f;
-	app->showInfoWindow = false;
+	app->selectRadiusMeter = 25.0f;
+	app->closeTracksModeSynced = true;
+	app->closeTracksMode = gpxvis::CAnimController::TBackgroundMode::BACKGROUND_UPTO;
+
 
 	if (!monitor) {
 		glfwSetWindowPos(app->win, x, y);
@@ -745,7 +796,6 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 	std::vector<gpx::CTrack>& tracks=animCtrl.GetTracks();
 	bool modified = false;
 	bool disabled = (tracks.size() < 1);
-	static size_t curIdx = 0;
 	if (!ImGui::Begin("Track Manager", isOpen)) {
 		ImGui::End();
 	}
@@ -800,9 +850,9 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 			char info[512];
 			mysnprintf(info, sizeof(info), "%d. %s [%s] %.1fkm %s", (int)(i+1), tracks[i].GetFilename(), tracks[i].GetInfo(), tracks[i].GetLength(), tracks[i].GetDurationString());
 			info[sizeof(info)-1]=0;
-			bool isSelected = (curIdx == i);
+			bool isSelected = (app->curTrackMgrIdx == i);
 			if (ImGui::Selectable(info, isSelected)) {
-				curIdx = i;
+				app->curTrackMgrIdx = i;
 			}
 			if (isSelected) {
 				ImGui::SetItemDefaultFocus();
@@ -811,53 +861,53 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		ImGui::EndListBox();
 	}
 	std::vector<gpx::CTrack>::iterator it=tracks.begin();
-	std::advance(it, curIdx);
+	std::advance(it, app->curTrackMgrIdx);
 	ImGui::BeginDisabled(disabled);
 	if (ImGui::BeginTable("managerpertracksplit", 6)) {
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Switch to", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			if (tracks.size() > 0) {
-				animCtrl.SwitchToTrack(curIdx);
+				animCtrl.SwitchToTrack(app->curTrackMgrIdx);
 				// TODO: modifiedHistory = animCfg.clearAtCycle;
 			}
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("To Front", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			if (tracks.size() > 1) {
-				gpx::CTrack tmp = tracks[curIdx];
+				gpx::CTrack tmp = tracks[app->curTrackMgrIdx];
 				tracks.erase(it);
 				tracks.insert(tracks.begin(), tmp);
-				curIdx = 0;
+				app->curTrackMgrIdx = 0;
 				modified = true;
 			}
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Move Up", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			if (tracks.size() > 1 && curIdx > 0) {
-				gpx::CTrack tmp = tracks[curIdx];
+			if (tracks.size() > 1 && app->curTrackMgrIdx > 0) {
+				gpx::CTrack tmp = tracks[app->curTrackMgrIdx];
 				tracks.erase(it);
-				tracks.insert(tracks.begin()+(curIdx-1), tmp);
-				curIdx--;
+				tracks.insert(tracks.begin()+(app->curTrackMgrIdx-1), tmp);
+				app->curTrackMgrIdx--;
 				modified = true;
 			}
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Move Down", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			if (tracks.size() > 1 && curIdx + 1 < tracks.size()) {
-				gpx::CTrack tmp = tracks[curIdx];
+			if (tracks.size() > 1 && app->curTrackMgrIdx + 1 < tracks.size()) {
+				gpx::CTrack tmp = tracks[app->curTrackMgrIdx];
 				tracks.erase(it);
-				tracks.insert(tracks.begin()+(curIdx+1), tmp);
-				curIdx++;
+				tracks.insert(tracks.begin()+(app->curTrackMgrIdx+1), tmp);
+				app->curTrackMgrIdx++;
 				modified = true;
 			}
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("To End", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			if (tracks.size() > 1) {
-				gpx::CTrack tmp = tracks[curIdx];
+				gpx::CTrack tmp = tracks[app->curTrackMgrIdx];
 				tracks.erase(it);
 				tracks.push_back(tmp);
-				curIdx = tracks.size()-1;
+				app->curTrackMgrIdx = tracks.size()-1;
 				modified = true;
 			}
 		}
@@ -865,10 +915,10 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		if (ImGui::Button("Remove", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			if (tracks.size() > 0) {
 				tracks.erase(it);
-				if (curIdx >= tracks.size()) {
-					curIdx = tracks.size();
-					if (curIdx > 0) {
-						curIdx--;
+				if (app->curTrackMgrIdx >= tracks.size()) {
+					app->curTrackMgrIdx = tracks.size();
+					if (app->curTrackMgrIdx > 0) {
+						app->curTrackMgrIdx--;
 					}
 				}
 				modified = true;
@@ -900,16 +950,16 @@ static void drawTrackManager(MainApp* app, gpxvis::CAnimController& animCtrl, gp
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Remove all Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			tracks.clear();
-			curIdx = 0;
+			app->curTrackMgrIdx = 0;
 			modified = true;
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Remove all Others", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			if (tracks.size() > 1) {
-				gpx::CTrack tmp = tracks[curIdx];
+				gpx::CTrack tmp = tracks[app->curTrackMgrIdx];
 				tracks.clear();
 				tracks.push_back(tmp);
-				curIdx = 0;
+				app->curTrackMgrIdx = 0;
 				modified = true;
 			}
 		}
@@ -993,10 +1043,40 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 	}
 	if (ImGui::TreeNodeEx("Closest tracks", ImGuiTreeNodeFlags_DefaultOpen)) {
 		const std::vector<gpx::CTrack>& tracks = animCtrl.GetTracks();
+		if (ImGui::Checkbox("sync with history mode", &app->closeTracksModeSynced)) {
+			updateCloseTracks(app, true);
+		}
+		ImGui::BeginDisabled(app->closeTracksModeSynced);
+		if (ImGui::BeginTable("closetrackmodesplit", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("History:");
+			ImGui::TableNextColumn();
+			int mode =(int)app->closeTracksMode;
+			if (ImGui::RadioButton("none##i1", &mode, gpxvis::CAnimController::BACKGROUND_NONE)) {
+				app->closeTracksMode = (gpxvis::CAnimController::TBackgroundMode)mode;
+				updateCloseTracks(app, false);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("current##i1", &mode, gpxvis::CAnimController::BACKGROUND_CURRENT)) {
+				app->closeTracksMode = (gpxvis::CAnimController::TBackgroundMode)mode;
+				updateCloseTracks(app, false);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("up-to##i1", &mode, gpxvis::CAnimController::BACKGROUND_UPTO)) {
+				app->closeTracksMode = (gpxvis::CAnimController::TBackgroundMode)mode;
+				updateCloseTracks(app, false);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("all##i1", &mode, gpxvis::CAnimController::BACKGROUND_ALL)) {
+				app->closeTracksMode = (gpxvis::CAnimController::TBackgroundMode)mode;
+				updateCloseTracks(app, false);
+			}
+			ImGui::EndTable();
+		}
+		ImGui::EndDisabled();
 
 		if (ImGui::SliderFloat("radius", &app->selectRadiusMeter, 0.1f, 1000.0f, "%.01fm", ImGuiSliderFlags_Logarithmic)) {
-			double radius = (app->selectRadiusMeter / 1000.0) / projectionScale;
-			animCtrl.GetTracksAt(app->selectedTrackPos[0],app->selectedTrackPos[1],radius,app->closeTracks);
+			updateCloseTracks(app, false);
 		}
 		ImGui::Text("found %llu tracks", (unsigned long long)app->closeTracks.size());
 		if (ImGui::BeginListBox("Closest Tracks", ImVec2(-FLT_MIN,  10 * ImGui::GetTextLineHeightWithSpacing()))) {
@@ -1018,8 +1098,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	bool modified = false;
 	bool modifiedHistory = false;
 	bool modifiedTransform = false;
-	static bool first  = true;
-	static bool showTrackManager = false;
 
 	const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
 	ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x, main_viewport->WorkPos.y), ImGuiCond_FirstUseEver);
@@ -1029,8 +1107,8 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	size_t cnt = animCtrl.GetTrackCount();
 	bool disabled = (cnt < 1);
 
-	if (first && disabled) {
-		showTrackManager = true;
+	if (app->firstMenuRun && disabled) {
+		app->showTrackManager = true;
 		if (app->fileDialog) {
 			app->fileDialog->Open();
 		}
@@ -1093,7 +1171,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndDisabled();
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Manage Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			showTrackManager = !showTrackManager;
+			app->showTrackManager = !app->showTrackManager;
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Info Window", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1106,9 +1184,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndTable();
 	}
 	static const gpx::CTrack defaultTrack;
-	static int timestepMode = 0;
-	static float fixedTimestep = 1000.0f/60.0f;
-	static float speedup = 1.0f;
 	const gpx::CTrack *curTrack = &defaultTrack;
 	if (cnt > 0) {
 		curTrack = &animCtrl.GetCurrentTrack();
@@ -1290,15 +1365,15 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		bool timestepModified = false;
 		ImGui::TextUnformatted("Timestep: ");
 		ImGui::SameLine();
-		if (ImGui::RadioButton("dynamic", &timestepMode, 0)) {
+		if (ImGui::RadioButton("dynamic", &app->timestepMode, 0)) {
 			timestepModified = true;
 		}
 		ImGui::SameLine();
-		if (ImGui::RadioButton("fixed", &timestepMode, 1)) {
+		if (ImGui::RadioButton("fixed", &app->timestepMode, 1)) {
 			timestepModified = true;
 		}
-		if (timestepMode) {
-			if (ImGui::SliderFloat("fixed timestep", &fixedTimestep, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic)) {
+		if (app->timestepMode) {
+			if (ImGui::SliderFloat("fixed timestep", &app->fixedTimestep, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic)) {
 				timestepModified = true;
 			}
 		} else {
@@ -1318,21 +1393,21 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (ImGui::SliderFloat("final end time", &endTime, 0.0f, 30.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
 			animCfg.endTime = endTime;
 		}
-		if (ImGui::SliderFloat("speedup factor", &speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
+		if (ImGui::SliderFloat("speedup factor", &app->speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
 			timestepModified = true;
 		}
 		if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			animCfg.ResetSpeeds();
-			speedup = 1.0f;
-			timestepMode = 0;
-			fixedTimestep = 1000.0f/60.0f;
+			app->speedup = 1.0f;
+			app->timestepMode = 0;
+			app->fixedTimestep = 1000.0f/60.0f;
 			timestepModified = true;
 		}
 		if (timestepModified) {
-			if (timestepMode == 1) {
-				animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+			if (app->timestepMode == 1) {
+				animCtrl.SetAnimSpeed(app->fixedTimestep/1000.0 * app->speedup);
 			} else {
-				animCtrl.SetAnimSpeed(-speedup);
+				animCtrl.SetAnimSpeed(-app->speedup);
 			}
 		}
 		ImGui::SeparatorText("Animation Options");
@@ -1530,7 +1605,6 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::TreePop();
 	}
 	if (ImGui::TreeNodeEx("Rendering", 0)) {
-		static int renderSize[2] = {-1, -1};
 		int maxSize = 8192;
 		bool adaptToWindow = false;
 		ImGui::BeginDisabled(disabled);
@@ -1545,11 +1619,11 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			ImGui::Text("data aspect ratio: %.3f", vis.GetDataAspect());
 			ImGui::EndTable();
 		}
-		if (renderSize[0] < 1) {
-			renderSize[0] = (int)vis.GetWidth();
+		if (app->renderSize[0] < 1) {
+			app->renderSize[0] = (int)vis.GetWidth();
 		}
-		if (renderSize[1] < 1) {
-			renderSize[1] = (int)vis.GetHeight();
+		if (app->renderSize[1] < 1) {
+			app->renderSize[1] = (int)vis.GetHeight();
 		}
 		ImGui::TextUnformatted("Framebuffer size: ");
 		ImGui::SameLine();
@@ -1560,27 +1634,27 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::EndDisabled();
 		ImGui::BeginDisabled(disabled || (app->mainSizeDynamic == 1));
-		if (ImGui::SliderInt("render width", &renderSize[0], 256, maxSize, "%dpx")) {
-			renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[0], animCfg.resolutionGranularity);
+		if (ImGui::SliderInt("render width", &app->renderSize[0], 256, maxSize, "%dpx")) {
+			app->renderSize[0] = (int)gpxutil::roundNextMultiple((GLsizei)app->renderSize[0], animCfg.resolutionGranularity);
 		}
-		if (ImGui::SliderInt("render height", &renderSize[1], 256, maxSize, "%dpx")) {
-			renderSize[1] = (int)gpxutil::roundNextMultiple((GLsizei)renderSize[1], animCfg.resolutionGranularity);
+		if (ImGui::SliderInt("render height", &app->renderSize[1], 256, maxSize, "%dpx")) {
+			app->renderSize[1] = (int)gpxutil::roundNextMultiple((GLsizei)app->renderSize[1], animCfg.resolutionGranularity);
 		}
 		ImGui::SliderInt("resolution multiple of", (int*)&animCfg.resolutionGranularity, 1, 64, "%dpx");
 		ImGui::Checkbox("Adjust framebuffer size to data aspect ratio", &animCfg.adjustToAspect);
 		if (ImGui::BeginTable("renderbuttonssplit", 2)) {
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Apply", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-				animCtrl.Prepare((GLsizei)renderSize[0], (GLsizei)renderSize[1]);
+				animCtrl.Prepare((GLsizei)app->renderSize[0], (GLsizei)app->renderSize[1]);
 				modifiedHistory = true;
 				modified = true;
-				renderSize[0] = -1;
-				renderSize[1] = -1;
+				app->renderSize[0] = -1;
+				app->renderSize[1] = -1;
 			}
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Cancel", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-				renderSize[0] = -1;
-				renderSize[1] = -1;
+				app->renderSize[0] = -1;
+				app->renderSize[1] = -1;
 			}
 			ImGui::EndTable();
 		}
@@ -1594,28 +1668,25 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		if (adaptToWindow) {
 			int mask = 63;
-			renderSize[0] = app->width;
-			renderSize[1] = app->height;
+			app->renderSize[0] = app->width;
+			app->renderSize[1] = app->height;
 			while (mask > 0) {
-				if ( !(renderSize[0] & mask) && !(renderSize[1] & mask)) {
+				if ( !(app->renderSize[0] & mask) && !(app->renderSize[1] & mask)) {
 					break;
 				}
 				mask = mask>>1;
 			}
 			animCfg.resolutionGranularity = (GLsizei)(mask+1);
 			animCfg.adjustToAspect = false;
-			animCtrl.Prepare((GLsizei)renderSize[0], (GLsizei)renderSize[1]);
+			animCtrl.Prepare((GLsizei)app->renderSize[0], (GLsizei)app->renderSize[1]);
 			modifiedHistory = true;
 			modified = true;
-			renderSize[0] = -1;
-			renderSize[1] = -1;
+			app->renderSize[0] = -1;
+			app->renderSize[1] = -1;
 		}
 	}
 	if (ImGui::TreeNodeEx("Output")) {
 		ImGui::BeginDisabled(disabled);
-		static bool forceFixedTimestep = true;
-		static bool withLabel = false;
-		static bool exitAfter = false;
 		ImGui::SeparatorText("Output to Files");
 		ImGui::BeginDisabled((app->dirDialog == NULL));
 		if (ImGui::Button("Select Directory", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1627,34 +1698,34 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndDisabled();
 		ImGui::InputText("output directory", &app->outputDir);
 		ImGui::InputText("filename prefix", &app->outputPrefix);
-		ImGui::Checkbox("force fixed timestep", &forceFixedTimestep);
-		ImGui::Checkbox("render text labels into images", &withLabel);
-		ImGui::Checkbox("exit application when finished", &exitAfter);
+		ImGui::Checkbox("force fixed timestep", &app->forceFixedTimestep);
+		ImGui::Checkbox("render text labels into images", &app->withLabel);
+		ImGui::Checkbox("exit application when finished", &app->exitAfter);
 
 		if (ImGui::BeginTable("outputbuttonssplit", 3)) {
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Render Animation", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 				animCtrl.ResetAnimation();
-				if (forceFixedTimestep) {
-					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+				if (app->forceFixedTimestep) {
+					animCtrl.SetAnimSpeed(app->fixedTimestep/1000.0 * app->speedup);
 				}
 				animCtrl.Play();
 				app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
 				cfg.outputFrames = app->outputFilename.c_str();
-				cfg.exitAfterOutputFrames = exitAfter;
-				cfg.withGUI = withLabel;
+				cfg.exitAfterOutputFrames = app->exitAfter;
+				cfg.withGUI = app->withLabel;
 			}
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Render From Here", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 				animCtrl.ResetFrameCounter();
-				if (forceFixedTimestep) {
-					animCtrl.SetAnimSpeed(fixedTimestep/1000.0 * speedup);
+				if (app->forceFixedTimestep) {
+					animCtrl.SetAnimSpeed(app->fixedTimestep/1000.0 * app->speedup);
 				}
 				animCtrl.Play();
 				app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
 				cfg.outputFrames = app->outputFilename.c_str();
-				cfg.exitAfterOutputFrames = exitAfter;
-				cfg.withGUI = withLabel;
+				cfg.exitAfterOutputFrames = app->exitAfter;
+				cfg.withGUI = app->withLabel;
 			}
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Save current frame", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1678,13 +1749,14 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 	if (modifiedHistory) {
 		//size_t curTrackIdx = animCtrl.GetCurrentTrackIndex();
 		animCtrl.RestoreHistory();
+		updateCloseTracks(app, true);
 	}
 	if (modified) {
 		animCtrl.RefreshCurrentTrack(modifiedHistory);
 	}
 
-	if (showTrackManager) {
-		drawTrackManager(app, animCtrl, vis, &showTrackManager);
+	if (app->showTrackManager) {
+		drawTrackManager(app, animCtrl, vis, &app->showTrackManager);
 	}
 	if (app->showInfoWindow) {
 		drawInfoWindow(app, animCtrl, vis, &app->showInfoWindow);
@@ -1711,7 +1783,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 	}
 	//const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-	first  = false;
+	app->firstMenuRun  = false;
 }
 #endif
 

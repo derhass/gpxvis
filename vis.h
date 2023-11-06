@@ -256,7 +256,7 @@ class CAnimController {
 		void TransformToPos(const GLfloat posNormalized[2], double pos[2]) const;
 		void TransformFromPos(const double pos[2], GLfloat posNormalized[2]) const;
 
-		void GetTracksAt(double x, double y, double radius, std::vector<TTrackDist>& indices) const;
+		void GetTracksAt(double x, double y, double radius, std::vector<TTrackDist>& indices, TBackgroundMode mode) const;
 
 		const gpxutil::CAABB& GetDataAABB() const {return aabb;}
 		const gpxutil::CAABB& GetScreenAABB() const {return screenAABB;}

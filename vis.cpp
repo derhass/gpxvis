@@ -1406,13 +1406,33 @@ static bool CloserThan(const TTrackDist& a, const TTrackDist& b)
 	return (a.d < b.d);
 }
 
-void CAnimController::GetTracksAt(double x, double y, double radius, std::vector<TTrackDist>& indices) const
+void CAnimController::GetTracksAt(double x, double y, double radius, std::vector<TTrackDist>& indices, TBackgroundMode mode) const
 {
-	size_t cnt = tracks.size();
+	const size_t cnt = tracks.size();
 	const double r2 = radius*radius;
+	size_t from = 0;
+	size_t to = cnt;
 
 	indices.clear();
-	for (size_t i=0; i<cnt; i++) {
+	if (!prepared && cnt < 1) {
+		return;
+	}
+	switch(mode) {
+		case BACKGROUND_NONE:
+			from = cnt+1;
+			break;
+		case BACKGROUND_UPTO:
+			to = curTrack + 1;
+			break;
+		case BACKGROUND_CURRENT:
+			from = curTrack;
+			to = curTrack+1;
+			break;
+		default:
+			(void)0; // already set up for "all"
+	}
+
+	for (size_t i=from; i<to; i++) {
 		double d2 = tracks[i].GetDistanceSqrTo(x,y);
 		if (d2 <= r2) {
 			TTrackDist td;
