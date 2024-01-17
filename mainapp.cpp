@@ -45,6 +45,7 @@ struct AppConfig {
 	bool withGUI;
 	bool exitAfterOutputFrames;
 	int switchTo;
+	int slowLast;
 	const char *outputFrames;
 	const char *outputStats;
 
@@ -65,6 +66,7 @@ struct AppConfig {
 #endif
 		exitAfterOutputFrames(true),
 		switchTo(0),
+		slowLast(0),
 		outputFrames(NULL),
 		outputStats(NULL)
 	{
@@ -501,6 +503,46 @@ static void processInputs(MainApp *app)
 }
 
 /****************************************************************************
+ * ANIMATION CONTROL HELPERS                                                *
+ ****************************************************************************/
+
+static void applyAnimationSpeed(MainApp *app)
+{
+	gpxvis::CAnimController& animCtrl = app->animCtrl;
+	if (app->timestepMode == 1) {
+		animCtrl.SetAnimSpeed(app->fixedTimestep/1000.0 * app->speedup);
+	} else {
+		animCtrl.SetAnimSpeed(-app->speedup);
+	}
+}
+
+static void switchToLastN(MainApp *app, size_t n=1, bool slow=true)
+{
+	gpxvis::CAnimController& animCtrl = app->animCtrl;
+	gpxvis::CAnimController::TAnimConfig& animCfg = animCtrl.GetAnimConfig();
+	if (slow) {
+		animCfg.PresetSpeedsSlow();
+		app->speedup = 1.0f;
+		applyAnimationSpeed(app);
+	}
+
+	size_t cnt = animCtrl.GetTrackCount();
+	if (cnt < 1 || n < 1) {
+		return;
+	}
+	if (cnt <= n) {
+		n = cnt - 1;
+	}
+	animCfg.paused = false;
+	animCfg.pauseAtCycle = true;
+	animCfg.clearAtCycle = false;
+
+	animCtrl.SwitchToTrack(cnt - n);
+	animCtrl.RestoreHistory();
+	updateCloseTracks(app, true);
+}
+
+/****************************************************************************
  * GLOBAL INITIALIZATION AND CLEANUP                                        *
  ****************************************************************************/
 
@@ -717,6 +759,9 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	/* initialize the timer */
 	app->timeCur=glfwGetTime();
 
+	if (cfg.slowLast > 0) {
+		switchToLastN(app, (size_t)cfg.slowLast, true);
+	}
 	return true;
 }
 
@@ -1162,7 +1207,7 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndTable();
 	}
 	ImGui::EndDisabled();
-	if (ImGui::BeginTable("controls", 4)) {
+	if (ImGui::BeginTable("controls", 5)) {
 		ImGui::BeginDisabled(disabled);
 		ImGui::TableNextColumn();
 		if (ImGui::Button(animCfg.paused?"Play":"Pause", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1170,12 +1215,16 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 		ImGui::EndDisabled();
 		ImGui::TableNextColumn();
-		if (ImGui::Button("Manage Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+		if (ImGui::Button("Tracks", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			app->showTrackManager = !app->showTrackManager;
 		}
 		ImGui::TableNextColumn();
-		if (ImGui::Button("Info Window", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+		if (ImGui::Button("Info", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
 			app->showInfoWindow = !app->showInfoWindow;
+		}
+		ImGui::TableNextColumn();
+		if (ImGui::Button("Slow Last", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+			switchToLastN(app, 1, true);
 		}
 		ImGui::TableNextColumn();
 		if (ImGui::Button("Quit", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
@@ -1396,19 +1445,27 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (ImGui::SliderFloat("speedup factor", &app->speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
 			timestepModified = true;
 		}
-		if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-			animCfg.ResetSpeeds();
-			app->speedup = 1.0f;
-			app->timestepMode = 0;
-			app->fixedTimestep = 1000.0f/60.0f;
-			timestepModified = true;
+		if (ImGui::BeginTable("animspeedbuttonsplit", 2)) {
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCfg.ResetSpeeds();
+				app->speedup = 1.0f;
+				app->timestepMode = 0;
+				app->fixedTimestep = 1000.0f/60.0f;
+				timestepModified = true;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::Button("Preset Slow", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+				animCfg.PresetSpeedsSlow();
+				app->speedup = 1.0f;
+				app->timestepMode = 0;
+				app->fixedTimestep = 1000.0f/60.0f;
+				timestepModified = true;
+			}
+			ImGui::EndTable();
 		}
 		if (timestepModified) {
-			if (app->timestepMode == 1) {
-				animCtrl.SetAnimSpeed(app->fixedTimestep/1000.0 * app->speedup);
-			} else {
-				animCtrl.SetAnimSpeed(-app->speedup);
-			}
+			applyAnimationSpeed(app);
 		}
 		ImGui::SeparatorText("Animation Options");
 		if (ImGui::BeginTable("animoptionssplit", 2)) {
@@ -1965,6 +2022,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 			cfg.withGUI = true;
 		} else if (!strcmp(argv[i], "--paused")) {
 			animCfg.paused = true;
+		} else if (!strcmp(argv[i], "--slow-last")) {
+			cfg.slowLast = 1;
 		} else {
 			bool unhandled = false;
 			if (i + 1 < argc) {
@@ -1996,6 +2055,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					animCfg.neighborhoodMode = (gpxvis::CAnimController::TBackgroundMode)strtol(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--switch-to")) {
 					cfg.switchTo = (int)strtol(argv[++i], NULL, 10);
+				} else if (!strcmp(argv[i], "--slow-last-n")) {
+					cfg.slowLast = (int)strtol(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--output-stats")) {
 					cfg.outputStats = argv[++i];
 				} else {

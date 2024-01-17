@@ -189,6 +189,8 @@ class CAnimController {
 			void ResetAtCycle();
 			void ResetModes();
 			void ResetResolutionSettings();
+
+			void PresetSpeedsSlow();
 		};
 
 		CAnimController();

@@ -758,6 +758,14 @@ void CAnimController::TAnimConfig::ResetResolutionSettings()
 	resolutionGranularity = 8;
 }
 
+void CAnimController::TAnimConfig::PresetSpeedsSlow()
+{
+	animDeltaPerFrame = -1.0;
+	trackSpeed = 0.08 * 3600.0;
+	fadeoutTime = 3.0;
+	endTime = 3.0;
+}
+
 CAnimController::CAnimController() :
 	curTrack(0),
 	curFrame(0),
