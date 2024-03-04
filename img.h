@@ -5,6 +5,9 @@
 
 namespace gpximg {
 
+const int getFileTypeIndex(const char *filetype, int defaultValue = 0);
+const char *getFileTypeName(int index);
+
 class CImg {
 	public:
 		CImg();
@@ -18,8 +21,7 @@ class CImg {
 		bool Allocate(int w, int h, int c);
 		void Destroy();
 
-		bool WriteTGA(const char *filename) const;
-		bool WritePNG(const char *filename) const;
+		bool Write(const char *filename, const char *filetype) const;
 
 		int GetWidth() const {return width;}
 		int GetHeight() const {return height;}

@@ -47,6 +47,7 @@ struct AppConfig {
 	int switchTo;
 	int slowLast;
 	const char *outputFrames;
+	const char *imageFileType;
 	const char *outputStats;
 
 	AppConfig() :
@@ -68,6 +69,7 @@ struct AppConfig {
 		switchTo(0),
 		slowLast(0),
 		outputFrames(NULL),
+		imageFileType("tga"),
 		outputStats(NULL)
 	{
 #ifndef NDEBUG
@@ -136,6 +138,7 @@ typedef struct {
 	bool exitAfter;
 	size_t curTrackMgrIdx;
 	bool firstMenuRun;
+	unsigned long currentFrameIdx;
 #endif
 
 	/* selection */
@@ -657,6 +660,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->exitAfter = false;
 	app->curTrackMgrIdx = 0;
 	app->firstMenuRun = true;
+	app->currentFrameIdx = 0;
 #endif
 
 	app->selectedTrackPos[0] = 0.0;
@@ -791,7 +795,7 @@ static void destroyMainApp(MainApp *app)
  * DRAWING FUNCTION                                                         *
  ****************************************************************************/
 
-static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *namePrefix, const char *additionalPrefix, unsigned long number)
+static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *filetype, const char *namePrefix, const char *additionalPrefix, unsigned long number)
 {
 	if (!namePrefix) {
 		namePrefix = "gpxvis_";
@@ -803,14 +807,14 @@ static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *name
 	gpximg::CImg img;
 	if (animCtrl.GetVis().GetImage(img)) {
 		char buf[4096];
-		mysnprintf(buf, sizeof(buf), "%s%s%06lu.tga", namePrefix, additionalPrefix, number);
-		img.WriteTGA(buf);
+		mysnprintf(buf, sizeof(buf), "%s%s%06lu.%s", namePrefix, additionalPrefix, number, filetype);
+		img.Write(buf,filetype);
 	}
 }
 
-static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *namePrefix)
+static void saveCurrentFrame(gpxvis::CAnimController& animCtrl, const char *filetype, const char *namePrefix)
 {
-	saveCurrentFrame(animCtrl, namePrefix, NULL, animCtrl.GetFrame());
+	saveCurrentFrame(animCtrl, filetype, namePrefix, NULL, animCtrl.GetFrame());
 }
 
 #ifdef GPXVIS_WITH_IMGUI
@@ -1755,6 +1759,28 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		ImGui::EndDisabled();
 		ImGui::InputText("output directory", &app->outputDir);
 		ImGui::InputText("filename prefix", &app->outputPrefix);
+		if (ImGui::BeginTable("filetypesplit", 5)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Type:");
+			int ft = gpximg::getFileTypeIndex(cfg.imageFileType);
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("TGA", &ft, 0)) {
+				cfg.imageFileType = gpximg::getFileTypeName(ft);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("PNG", &ft, 1)) {
+				cfg.imageFileType = gpximg::getFileTypeName(ft);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("BMP", &ft, 2)) {
+				cfg.imageFileType = gpximg::getFileTypeName(ft);
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("JPG", &ft, 3)) {
+				cfg.imageFileType = gpximg::getFileTypeName(ft);
+			}
+			ImGui::EndTable();
+		}
 		ImGui::Checkbox("force fixed timestep", &app->forceFixedTimestep);
 		ImGui::Checkbox("render text labels into images", &app->withLabel);
 		ImGui::Checkbox("exit application when finished", &app->exitAfter);
@@ -1786,9 +1812,8 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 			}
 			ImGui::TableNextColumn();
 			if (ImGui::Button("Save current frame", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-				static unsigned long currentFrameIdx = 0;
 				app->outputFilename = filedialog::makePath(app->outputDir, app->outputPrefix);
-				saveCurrentFrame(animCtrl, app->outputFilename.c_str(), "current_", currentFrameIdx++);
+				saveCurrentFrame(animCtrl, cfg.imageFileType, app->outputFilename.c_str(), "current_", app->currentFrameIdx++);
 			}
 			ImGui::EndTable();
 		}
@@ -1919,7 +1944,7 @@ displayFunc(MainApp *app, AppConfig& cfg)
 
 	if (cfg.outputFrames) {
 		gpximg::CImg img;
-		saveCurrentFrame(app->animCtrl, cfg.outputFrames);
+		saveCurrentFrame(app->animCtrl, cfg.imageFileType, cfg.outputFrames);
 		if (cycleFinished) {
 			cfg.outputFrames = NULL;
 			if (cfg.exitAfterOutputFrames) {
@@ -2042,6 +2067,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 				} else if (!strcmp(argv[i], "--output-frames")) {
 					cfg.outputFrames = argv[++i];
 					cfg.withGUI = false;
+				} else if (!strcmp(argv[i], "--output-filetype")) {
+					cfg.imageFileType = argv[++i];
 				} else if (!strcmp(argv[i], "--output-fps")) {
 					double fps = strtod(argv[++i], NULL);
 					app.animCtrl.SetAnimSpeed(1.0/fps);
