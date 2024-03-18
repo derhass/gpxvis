@@ -1131,6 +1131,7 @@ bool CAnimController::UpdateStepModeTrack()
 			if (animCfg.neighborhoodMode == BACKGROUND_UPTO) {
 				vis.AddLineToNeighborhood();
 			}
+			vis.MixTrackAndBackground(0.0f);
 			if (++curTrack >= tracks.size()) {
 				if (tracks.size() > 0) {
 					curTrack = tracks.size() - 1;
