@@ -170,7 +170,13 @@ class CAnimController {
 			BACKGROUND_ALL
 		} TBackgroundMode;
 
+		typedef enum : int {
+			ANIM_MODE_TRACK,
+			ANIM_MODE_HISTORY,
+		} TAnimMode;
+
 		struct TAnimConfig {
+			TAnimMode     mode;
 			double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
 			double        trackSpeed;        // 1.0 is realtime
 			double        fadeoutTime;	 // seconds
@@ -307,6 +313,8 @@ class CAnimController {
 		void   UpdateTrack(size_t idx);
 		bool   RestoreCurrentTrack(size_t curId);
 
+		bool UpdateStepModeTrack();
+		bool UpdateStepModeHistory();
 		double GetAnimationTimeDelta(double deltaTime) const;
 		float  GetTrackAnimation(TPhase& nextPhase);
 		float  GetFadeoutAnimation(TPhase& nextPhase);

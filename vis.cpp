@@ -725,6 +725,7 @@ CAnimController::TAnimConfig::TAnimConfig()
 
 void CAnimController::TAnimConfig::Reset()
 {
+	mode = ANIM_MODE_TRACK;
 	ResetSpeeds();
 	ResetAtCycle();
 	ResetModes();
@@ -1048,10 +1049,11 @@ void CAnimController::DropGL()
 
 bool CAnimController::UpdateStep(double timeDelta)
 {
+	bool cycleFinished;
+
 	if (!prepared) {
 		return false;
 	}
-	bool cycleFinished = false;
 	/*
 	vis.DrawTrack(-1.0f);
 	vis.MixTrackAndBackground(1.0f);
@@ -1066,8 +1068,24 @@ bool CAnimController::UpdateStep(double timeDelta)
 	animationTimeDelta = GetAnimationTimeDelta(timeDelta);
 	animationTime += animationTimeDelta;
 
-	TPhase nextPhase = curPhase;
+	switch(animCfg.mode) {
+		case ANIM_MODE_TRACK:
+			cycleFinished = UpdateStepModeTrack();
+			break;
+		case ANIM_MODE_HISTORY:
+			cycleFinished = UpdateStepModeHistory();
+			break;
+		default:
+			cycleFinished = true;
+	}
+	return cycleFinished;
+}
 
+bool CAnimController::UpdateStepModeTrack()
+{
+	bool cycleFinished = false;
+
+	TPhase nextPhase = curPhase;
 	switch(curPhase) {
 		case PHASE_INIT:
 			if (newCycle) {
@@ -1161,6 +1179,56 @@ bool CAnimController::UpdateStep(double timeDelta)
 		curPhase = nextPhase;
 		phaseEntryTime = animationTime;
 	}
+	return cycleFinished;
+}
+
+bool CAnimController::UpdateStepModeHistory()
+{
+	bool cycleFinished = false;
+
+	if (animCfg.paused) {
+		return false;
+	}
+
+	if (newCycle) {
+		vis.Clear();
+		curFrame = 0;
+		curPhase = PHASE_INIT;
+		newCycle = false;
+	}
+
+	TPhase nextPhase = curPhase;
+	switch(curPhase) {
+		case PHASE_INIT:
+			// first image keeps empty
+			SwitchToTrack(0);
+			nextPhase = PHASE_CYCLE;
+			break;
+		case PHASE_CYCLE:
+			vis.AddLineToBackground();
+			vis.MixTrackAndBackground(0.0f);
+			nextPhase = PHASE_TRACK;
+			break;
+		case PHASE_TRACK:
+			SwitchToTrack(curTrack + 1);
+			vis.AddLineToBackground();
+			vis.MixTrackAndBackground(0.0f);
+			if (curTrack + 1 >= tracks.size()) {
+				nextPhase = PHASE_INIT;
+				cycleFinished = true;
+				if (animCfg.pauseAtCycle) {
+					animCfg.paused = true;
+				}
+				if (animCfg.clearAtCycle) {
+					vis.Clear();
+				}
+			}
+			break;
+		default:
+			(void)0;
+	}
+	curPhase = nextPhase;
+
 	return cycleFinished;
 }
 
