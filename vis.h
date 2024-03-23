@@ -183,6 +183,7 @@ class CAnimController {
 		} TAnimMode;
 
 		typedef enum : int {
+			ACCU_COUNT,
 			ACCU_DAY,
 			ACCU_WEEK,
 			ACCU_MONTH,
@@ -204,6 +205,7 @@ class CAnimController {
 			bool          adjustToAspect;
 			GLsizei       resolutionGranularity;
 			TAccuMode     accuMode;
+			size_t        accuCount;
 
 			TAnimConfig();
 			void Reset();

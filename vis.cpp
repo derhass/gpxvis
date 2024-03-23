@@ -739,6 +739,7 @@ void CAnimController::TAnimConfig::Reset()
 {
 	mode = ANIM_MODE_TRACK;
 	accuMode = ACCU_MONTH;
+	accuCount = 1;
 	ResetSpeeds();
 	ResetAtCycle();
 	ResetModes();
@@ -1653,6 +1654,9 @@ bool CAnimController::ShouldAccumulateTrack(size_t startIdx, size_t idx)
 	if (startIdx == idx) {
 		return true;
 	}
+	if (startIdx > idx) {
+		return false;
+	}
 
 	time_t startTime = tracks[startIdx].GetStartTimestamp();
 	time_t endTime = tracks[idx].GetStartTimestamp();
@@ -1669,6 +1673,13 @@ bool CAnimController::ShouldAccumulateTrack(size_t startIdx, size_t idx)
 	}
 
 	switch(animCfg.accuMode) {
+		case ACCU_COUNT:
+			if (idx - startIdx < animCfg.accuCount) {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"#%llu - #%llu", (unsigned long long)startIdx+1, (unsigned long long)idx+1);
+				return true;
+			}
+			break;
 		case ACCU_DAY:
 			mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
 				"%d-%02d-%02d",
