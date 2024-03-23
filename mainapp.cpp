@@ -825,14 +825,19 @@ static void drawTrackStatus(gpxvis::CAnimController& animCtrl)
 			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
 			ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoBringToFrontOnFocus);
 	if (animCtrl.GetTrackCount()) {
-		const gpx::CTrack& track = animCtrl.GetCurrentTrack();
-		ImGui::SetCursorPosY(2);
-		ImGui::Text("#%d/%d", (int)animCtrl.GetCurrentTrackIndex()+1, (int)animCtrl.GetTrackCount());
-		float ww = ImGui::GetWindowSize().x;
-		float tw = ImGui::CalcTextSize(track.GetInfo()).x;
-		ImGui::SetCursorPosX(ww - tw - 8.0f);
-		ImGui::SetCursorPosY(2);
-		ImGui::Text(track.GetInfo());
+		const char *info = animCtrl.GetFrameInfo(gpxvis::CAnimController::FRAME_INFO_LEFT);
+		if (info) {
+			ImGui::SetCursorPosY(2);
+			ImGui::TextUnformatted(info);
+		}
+		info = animCtrl.GetFrameInfo(gpxvis::CAnimController::FRAME_INFO_RIGHT);
+		if (info) {
+			float ww = ImGui::GetWindowSize().x;
+			float tw = ImGui::CalcTextSize(info).x;
+			ImGui::SetCursorPosX(ww - tw - 8.0f);
+			ImGui::SetCursorPosY(2);
+			ImGui::Text(info);
+		}
 	}
 	ImGui::End();
 }

@@ -794,6 +794,10 @@ CAnimController::CAnimController() :
 	allTrackDuration(0.0)
 {
 	avgStart[0] = avgStart[1] = avgStart[2] = 0.0;
+	frameInfoBuffer[0]=0;
+	frameInfoBuffer[sizeof(frameInfoBuffer)-1]=0;
+	accuInfoBuffer[0]=0;
+	accuInfoBuffer[sizeof(accuInfoBuffer)-1]=0;
 }
 
 bool CAnimController::AddTrack(const char *filename)
@@ -1217,6 +1221,7 @@ bool CAnimController::UpdateStepModeTrackAccu()
 	switch(curPhase) {
 		case PHASE_CYCLE:
 			// first image keeps empty
+			accuInfoBuffer[0] = 0;
 			SwitchToTrackInternal(0);
 			vis.MixTrackAndBackground(0.0f);
 			nextPhase = PHASE_SWITCH_TRACK;
@@ -1664,12 +1669,18 @@ bool CAnimController::ShouldAccumulateTrack(size_t startIdx, size_t idx)
 
 	switch(animCfg.accuMode) {
 		case ACCU_DAY:
+			mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+				"%d-%02d-%02d",
+				tA.tm_year+1900, tA.tm_mon+1, tA.tm_mday);
 			return ((tA.tm_mon == tB.tm_mon) && (tA.tm_mday == tB.tm_mday));
 		case ACCU_WEEK:
 			// TODO
 			gpxutil::warn("TODO: ACCU_WEEK not implemented!");
 			break;
 		case ACCU_MONTH:
+			mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+				"%d-%02d",
+				tA.tm_year+1900, tA.tm_mon+1);
 			return (tA.tm_mon == tB.tm_mon);
 		default:
 			gpxutil::warn("invalid accuMode!");
@@ -1733,6 +1744,36 @@ void CAnimController::AccumulateTrackHistory()
 	}
 
 	SwitchToTrackInternal(c);
+}
+
+const char* CAnimController::GetFrameInfo(TFrameInfoType t)
+{
+	if (GetTrackCount() < 1) {
+		return NULL;
+	}
+	if (animCfg.mode == ANIM_MODE_TRACK_ACCU) {
+		switch(t) {
+			case FRAME_INFO_LEFT:
+				return accuInfoBuffer;
+				break;
+			default:
+				return NULL;
+		}
+		
+	} else {
+		switch(t) {
+			case FRAME_INFO_LEFT:
+				mysnprintf(frameInfoBuffer, sizeof(frameInfoBuffer),
+					"#%llu/%llu", (unsigned long long)GetCurrentTrackIndex()+1, (unsigned long long)GetTrackCount());
+				break;
+			case FRAME_INFO_RIGHT:
+				return GetCurrentTrack().GetInfo();
+			default:
+				return NULL;
+		}
+	}
+	frameInfoBuffer[sizeof(frameInfoBuffer)-1] = 0;
+	return frameInfoBuffer;
 }
 
 

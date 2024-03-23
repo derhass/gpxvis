@@ -285,6 +285,13 @@ class CAnimController {
 		const gpxutil::CAABB& GetDataAABB() const {return aabb;}
 		const gpxutil::CAABB& GetScreenAABB() const {return screenAABB;}
 
+		typedef enum : int {
+			FRAME_INFO_LEFT,
+			FRAME_INFO_RIGHT,
+		} TFrameInfoType;
+
+		const char *GetFrameInfo(TFrameInfoType t);
+
 	private:
 		typedef enum {
 			PHASE_INIT,
@@ -322,6 +329,8 @@ class CAnimController {
 		double        allTrackLength;
 		double        allTrackDuration;
 		std::string   allTrackDurationString;
+		char          frameInfoBuffer[64];
+		char          accuInfoBuffer[64];
 
 		CVis  vis;
 		gpxutil::CAABB aabb;
