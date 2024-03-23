@@ -478,12 +478,8 @@ void CVis::SetPolygon(const std::vector<GLfloat>& vertices2D)
 	gpxutil::info("created buffer %u (SSBO %d line) for %u vertices", ssbo[SSBO_LINE], (int)SSBO_LINE, (unsigned)bufferVertexCount);
 }
 
-void CVis::DrawTrack(float upTo)
+void CVis::DrawTrackInternal(float upTo)
 {
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_TRACK]);
-	glViewport(0,0,width,height);
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glBindVertexArray(vaoEmpty);
 
 	if (vertexCount > 0) {
@@ -526,6 +522,22 @@ void CVis::DrawTrack(float upTo)
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 		}
 	}
+}
+
+void CVis::DrawTrack(float upTo, bool clear)
+{
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbo[FB_TRACK]);
+	glViewport(0,0,width,height);
+	if (clear) {
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
+	DrawTrackInternal(upTo);
+}
+
+void CVis::DrawTrack(float upTo)
+{
+	DrawTrack(upTo, true);
 }
 
 void CVis::DrawHistory()
@@ -726,6 +738,7 @@ CAnimController::TAnimConfig::TAnimConfig()
 void CAnimController::TAnimConfig::Reset()
 {
 	mode = ANIM_MODE_TRACK;
+	accuMode = ACCU_MONTH;
 	ResetSpeeds();
 	ResetAtCycle();
 	ResetModes();
@@ -738,6 +751,7 @@ void CAnimController::TAnimConfig::ResetSpeeds()
 	animDeltaPerFrame = -1.0;
 	trackSpeed = 3.0 * 3600.0;
 	fadeoutTime = 0.5;
+	fadeinTime = 0.5;
 	endTime = 3.0;
 }
 
@@ -774,6 +788,7 @@ CAnimController::CAnimController() :
 	curPhase(PHASE_INIT),
 	prepared(false),
 	newCycle(true),
+	animEndReached(false),
 	animationTime(0.0),
 	allTrackLength(0.0),
 	allTrackDuration(0.0)
@@ -1072,6 +1087,9 @@ bool CAnimController::UpdateStep(double timeDelta)
 		case ANIM_MODE_TRACK:
 			cycleFinished = UpdateStepModeTrack();
 			break;
+		case ANIM_MODE_TRACK_ACCU:
+			cycleFinished = UpdateStepModeTrackAccu();
+			break;
 		case ANIM_MODE_HISTORY:
 			cycleFinished = UpdateStepModeHistory();
 			break;
@@ -1183,6 +1201,101 @@ bool CAnimController::UpdateStepModeTrack()
 	return cycleFinished;
 }
 
+bool CAnimController::UpdateStepModeTrackAccu()
+{
+	bool cycleFinished = false;
+
+	if (animCfg.paused) {
+		return false;
+	}
+
+	if (newCycle) {
+		vis.Clear();
+		curFrame = 0;
+		curPhase = PHASE_CYCLE;
+		animEndReached = false;
+		newCycle = false;
+	}
+
+	TPhase nextPhase = curPhase;
+	switch(curPhase) {
+		case PHASE_CYCLE:
+			// first image keeps empty
+			SwitchToTrackInternal(0);
+			vis.MixTrackAndBackground(0.0f);
+			nextPhase = PHASE_SWITCH_TRACK;
+			break;
+		case PHASE_INIT:
+		case PHASE_SWITCH_TRACK:
+			// ACCUMULATE
+			animEndReached = AccumulateTracks(true);
+			if (animCfg.fadeinTime <= 0.0) {
+				AccumulateTrackHistory();
+				vis.MixTrackAndBackground(1.0f);
+			} else {
+				vis.MixTrackAndBackground(0.0f);
+				curFadeRatio = 0.0f;
+				curFadeTime = 0.0;
+				nextPhase = PHASE_TRACK;
+			}
+			break;
+		case PHASE_TRACK:
+			// FADE-IN accumulated
+			curFadeTime += animationTimeDelta;
+			curFadeRatio  = (float)(curFadeTime / animCfg.fadeinTime);
+			if (curFadeRatio > 1.0f) {
+				curFadeRatio = 1.0f;
+			}
+			vis.MixTrackAndBackground(curFadeRatio);
+			if (curFadeRatio >= 1.0f) {
+				AccumulateTrackHistory();
+				if (animCfg.fadeoutTime <= 0.0) {
+					nextPhase = PHASE_SWITCH_TRACK;
+				} else {
+					curFadeRatio = 0.0f;
+					curFadeTime = 0.0;
+					nextPhase = PHASE_FADEOUT;
+				}
+			}
+			break;
+		case PHASE_FADEOUT:
+			// FADE-OUT accumulated
+			curFadeTime += animationTimeDelta;
+			curFadeRatio  = (float)(curFadeTime / animCfg.fadeoutTime);
+			if (curFadeRatio > 1.0f) {
+				curFadeRatio = 1.0f;
+			}
+			vis.MixTrackAndBackground(1.0f - curFadeRatio);
+			if (curFadeRatio >= 1.0f) {
+				nextPhase = PHASE_SWITCH_TRACK;
+			}
+			break;
+		case PHASE_END:
+			if (animationTime >= phaseEntryTime + animCfg.endTime) {
+				nextPhase = PHASE_CYCLE;
+				cycleFinished = true;
+				if (animCfg.pauseAtCycle) {
+					animCfg.paused = true;
+				}
+				if (animCfg.clearAtCycle) {
+					vis.Clear();
+				}
+			}
+			vis.MixTrackAndBackground(1.0f - curFadeRatio);
+			break;
+		default:
+			(void)0;
+	}
+
+	if (nextPhase == PHASE_SWITCH_TRACK) {
+		if (animEndReached) {
+			nextPhase = PHASE_END;
+		}
+	}
+	curPhase = nextPhase;
+
+	return cycleFinished;
+}
 bool CAnimController::UpdateStepModeHistory()
 {
 	bool cycleFinished = false;
@@ -1211,7 +1324,7 @@ bool CAnimController::UpdateStepModeHistory()
 			nextPhase = PHASE_TRACK;
 			break;
 		case PHASE_TRACK:
-			SwitchToTrack(curTrack + 1);
+			SwitchToTrackInternal(curTrack + 1);
 			vis.AddLineToBackground();
 			vis.MixTrackAndBackground(0.0f);
 			if (curTrack + 1 >= tracks.size()) {
@@ -1292,7 +1405,7 @@ void CAnimController::ChangeTrack(int delta)
 	curPhase = PHASE_INIT;
 }
 
-void CAnimController::SwitchToTrack(size_t idx)
+void CAnimController::SwitchToTrackInternal(size_t idx)
 {
 	if (tracks.size() < 1) {
 		return;
@@ -1303,6 +1416,11 @@ void CAnimController::SwitchToTrack(size_t idx)
 	}
 	curTrack = idx;
 	UpdateTrack(curTrack);
+}
+
+void CAnimController::SwitchToTrack(size_t idx)
+{
+	SwitchToTrackInternal(idx);
 	curPhase = PHASE_INIT;
 }
 
@@ -1520,6 +1638,100 @@ void CAnimController::GetTracksAt(double x, double y, double radius, std::vector
 	}
 	std::sort(indices.begin(),indices.end(), CloserThan);
 }
+
+bool CAnimController::ShouldAccumulateTrack(size_t startIdx, size_t idx)
+{
+	if (startIdx == idx) {
+		return true;
+	}
+
+	time_t startTime = tracks[startIdx].GetStartTimestamp();
+	time_t endTime = tracks[idx].GetStartTimestamp();
+	struct tm tA,tB;
+#ifdef WIN32
+	localtime_s(&tA, &startTime);
+	localtime_s(&tB, &endTime);
+#else
+	localtime_r(&startTime, &tA);
+	localtime_r(&endTime, &tB);
+#endif
+	if (tA.tm_year != tB.tm_year) {
+		return false;
+	}
+
+	switch(animCfg.accuMode) {
+		case ACCU_DAY:
+			return ((tA.tm_mon == tB.tm_mon) && (tA.tm_mday == tB.tm_mday));
+		case ACCU_WEEK:
+			// TODO
+			gpxutil::warn("TODO: ACCU_WEEK not implemented!");
+			break;
+		case ACCU_MONTH:
+			return (tA.tm_mon == tB.tm_mon);
+		default:
+			gpxutil::warn("invalid accuMode!");
+	}
+
+	return false;
+}
+
+bool CAnimController::AccumulateTracks(bool clearAccu)
+{
+	size_t cnt = tracks.size();
+	size_t start = curTrack;
+	size_t end;
+	size_t i;
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vis.fbo[CVis::FB_TRACK]);
+	glViewport(0,0,vis.width,vis.height);
+	if (clearAccu) {
+		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	}
+
+	if (cnt < 1) {
+		return true;
+	}
+
+	accumulateStart = start;
+
+	for (i=start; i<cnt; i++) {
+		if (!ShouldAccumulateTrack(start, i)) {
+			break;
+		}
+		SwitchToTrackInternal(i);
+		vis.DrawTrackInternal(-1.0f);
+	}
+	end = i;
+	accumulateEnd = end;
+
+	if (end < cnt) {
+		SwitchToTrackInternal(end);
+		return false;
+	}
+
+	return true;
+}
+
+void CAnimController::AccumulateTrackHistory()
+{
+	size_t cnt = tracks.size();
+	size_t c = curTrack;
+	size_t i;
+
+	if (cnt < 1 || accumulateStart >= accumulateEnd || accumulateEnd > cnt) {
+		return;
+	}
+
+	for (i=accumulateStart; i<accumulateEnd; i++) {
+		SwitchToTrackInternal(i);
+		vis.AddLineToBackground();
+		vis.AddLineToNeighborhood();
+	}
+
+	SwitchToTrackInternal(c);
+}
+
 
 } // namespace gpxvis
 

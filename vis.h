@@ -23,6 +23,8 @@ struct TTrackDist {
  * VISUALIZE A SINGLE POLYGON, MIX IT WITH THE HISTORY                      *
  ****************************************************************************/
 
+class CAnimController; // forward, see below
+
 class CVis {
 	public:
 		typedef enum : int {
@@ -73,6 +75,7 @@ class CVis {
 
 		void SetPolygon(const std::vector<GLfloat>& vertices2D);
 
+		void DrawTrack(float upTo, bool clear);
 		void DrawTrack(float upTo);
 		void DrawHistory();
 		void DrawNeighborhood();
@@ -155,6 +158,9 @@ class CVis {
 
 		GLenum GetFramebufferTextureFormat(TFramebuffer fb) const;
 		bool InitializeUBO(int i);
+		void DrawTrackInternal(float upTo);
+
+		friend class CAnimController;
 };
 
 /****************************************************************************
@@ -172,14 +178,23 @@ class CAnimController {
 
 		typedef enum : int {
 			ANIM_MODE_TRACK,
+			ANIM_MODE_TRACK_ACCU,
 			ANIM_MODE_HISTORY,
 		} TAnimMode;
+
+		typedef enum : int {
+			ACCU_DAY,
+			ACCU_WEEK,
+			ACCU_MONTH,
+			ACCU_YEAR
+		} TAccuMode;
 
 		struct TAnimConfig {
 			TAnimMode     mode;
 			double	      animDeltaPerFrame; // negative is a factor for dynamic scale with render time, postive is fixed increment 
 			double        trackSpeed;        // 1.0 is realtime
 			double        fadeoutTime;	 // seconds
+			double        fadeinTime;	 // seconds
 			double        endTime;           // sedonds
 			bool          paused;
 			bool          pauseAtCycle;
@@ -188,6 +203,7 @@ class CAnimController {
 			TBackgroundMode neighborhoodMode;
 			bool          adjustToAspect;
 			GLsizei       resolutionGranularity;
+			TAccuMode     accuMode;
 
 			TAnimConfig();
 			void Reset();
@@ -288,6 +304,7 @@ class CAnimController {
 		TPhase        curPhase;
 		bool          prepared;
 		bool          newCycle;
+		bool          animEndReached;
 
 		double        animationTime;
 		double        animationTimeDelta;
@@ -296,6 +313,8 @@ class CAnimController {
 		float         curTrackUpTo;
 		float         curFadeRatio;
 		double        curFadeTime;
+		size_t        accumulateStart;
+		size_t        accumulateEnd;
 
 		double        offset[3];
 		double        scale[3];
@@ -314,10 +333,16 @@ class CAnimController {
 		bool   RestoreCurrentTrack(size_t curId);
 
 		bool UpdateStepModeTrack();
+		bool UpdateStepModeTrackAccu();
 		bool UpdateStepModeHistory();
+		void SwitchToTrackInternal(size_t idx);
 		double GetAnimationTimeDelta(double deltaTime) const;
 		float  GetTrackAnimation(TPhase& nextPhase);
 		float  GetFadeoutAnimation(TPhase& nextPhase);
+
+		bool ShouldAccumulateTrack(size_t startIdx, size_t idx);
+		bool AccumulateTracks(bool clearAccu);
+		void AccumulateTrackHistory();
 };
 
 } // namespace gpxvis
