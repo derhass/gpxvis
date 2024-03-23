@@ -1300,6 +1300,7 @@ bool CAnimController::UpdateStepModeTrackAccu()
 			}
 		}
 		curPhase = nextPhase;
+		phaseEntryTime = animationTime;
 	}
 
 	return cycleFinished;
