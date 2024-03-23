@@ -1380,6 +1380,47 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 
 	if (ImGui::TreeNodeEx("Animation Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::BeginDisabled(disabled);
+		if (ImGui::BeginTable("animmodesplit", 4)) {
+			ImGui::TableNextColumn();
+			ImGui::TextUnformatted("Mode:");
+			int mode =(int)animCfg.mode;
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("track##am1", &mode, gpxvis::CAnimController::ANIM_MODE_TRACK)) {
+				animCfg.mode = (gpxvis::CAnimController::TAnimMode)mode;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("accum##am1", &mode, gpxvis::CAnimController::ANIM_MODE_TRACK_ACCU)) {
+				animCfg.mode = (gpxvis::CAnimController::TAnimMode)mode;
+			}
+			ImGui::TableNextColumn();
+			if (ImGui::RadioButton("history##am1", &mode, gpxvis::CAnimController::ANIM_MODE_HISTORY)) {
+				animCfg.mode = (gpxvis::CAnimController::TAnimMode)mode;
+			}
+			ImGui::EndTable();
+		}
+
+		if (animCfg.mode == gpxvis::CAnimController::ANIM_MODE_TRACK_ACCU) {
+			if (ImGui::BeginTable("animaccumodesplit", 4)) {
+				ImGui::TableNextColumn();
+				ImGui::TextUnformatted("Accum mode:");
+				int mode =(int)animCfg.accuMode;
+				ImGui::TableNextColumn();
+				if (ImGui::RadioButton("day##aam1", &mode, gpxvis::CAnimController::ACCU_DAY)) {
+					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
+				}
+				ImGui::BeginDisabled(true);
+				ImGui::TableNextColumn();
+				if (ImGui::RadioButton("week##aam1", &mode, gpxvis::CAnimController::ACCU_WEEK)) {
+					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
+				}
+				ImGui::EndDisabled();
+				ImGui::TableNextColumn();
+				if (ImGui::RadioButton("month##aam1", &mode, gpxvis::CAnimController::ACCU_MONTH)) {
+					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
+				}
+				ImGui::EndTable();
+			}
+		}
 		ImGui::SeparatorText("Animation Position");
 		if (ImGui::BeginTable("animinfosplit", 3)) {
 			ImGui::TableNextColumn();
@@ -1416,57 +1457,69 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 
 		ImGui::SeparatorText("Animation Speed");
 		bool timestepModified = false;
-		ImGui::TextUnformatted("Timestep: ");
-		ImGui::SameLine();
-		if (ImGui::RadioButton("dynamic", &app->timestepMode, 0)) {
-			timestepModified = true;
-		}
-		ImGui::SameLine();
-		if (ImGui::RadioButton("fixed", &app->timestepMode, 1)) {
-			timestepModified = true;
-		}
-		if (app->timestepMode) {
-			if (ImGui::SliderFloat("fixed timestep", &app->fixedTimestep, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic)) {
+		if (animCfg.mode != gpxvis::CAnimController::ANIM_MODE_HISTORY) {
+			ImGui::TextUnformatted("Timestep: ");
+			ImGui::SameLine();
+			if (ImGui::RadioButton("dynamic", &app->timestepMode, 0)) {
 				timestepModified = true;
 			}
-		} else {
-			float value = (float)app->timeDelta * 1000.0f;
-			ImGui::SliderFloat("dynamic timestep", &value, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic);
+			ImGui::SameLine();
+			if (ImGui::RadioButton("fixed", &app->timestepMode, 1)) {
+				timestepModified = true;
+			}
+			if (app->timestepMode) {
+				if (ImGui::SliderFloat("fixed timestep", &app->fixedTimestep, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic)) {
+					timestepModified = true;
+				}
+			} else {
+				float value = (float)app->timeDelta * 1000.0f;
+				ImGui::SliderFloat("dynamic timestep", &value, 0.01f, 10000.0, "%.2fms", ImGuiSliderFlags_Logarithmic);
+			}
 		}
 
-		float trackSpeed = (float)animCfg.trackSpeed/3600.0f;
-		if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
-			animCfg.trackSpeed = trackSpeed * 3600.0;
+		if (animCfg.mode == gpxvis::CAnimController::ANIM_MODE_TRACK) {
+			float trackSpeed = (float)animCfg.trackSpeed/3600.0f;
+			if (ImGui::SliderFloat("track speed", &trackSpeed, 0.0f, 100.0, "%.3fhrs/s", ImGuiSliderFlags_Logarithmic)) {
+				animCfg.trackSpeed = trackSpeed * 3600.0;
+			}
 		}
-		float fadeout = (float)animCfg.fadeoutTime;
-		if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
-			animCfg.fadeoutTime = fadeout;
+		if (animCfg.mode == gpxvis::CAnimController::ANIM_MODE_TRACK_ACCU) {
+			float fadein = (float)animCfg.fadeinTime;
+			if (ImGui::SliderFloat("fade-in time", &fadein, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+				animCfg.fadeinTime = fadein;
+			}
 		}
-		float endTime = (float)animCfg.endTime;
-		if (ImGui::SliderFloat("final end time", &endTime, 0.0f, 30.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
-			animCfg.endTime = endTime;
-		}
-		if (ImGui::SliderFloat("speedup factor", &app->speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
-			timestepModified = true;
-		}
-		if (ImGui::BeginTable("animspeedbuttonsplit", 2)) {
-			ImGui::TableNextColumn();
-			if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-				animCfg.ResetSpeeds();
-				app->speedup = 1.0f;
-				app->timestepMode = 0;
-				app->fixedTimestep = 1000.0f/60.0f;
+		if (animCfg.mode != gpxvis::CAnimController::ANIM_MODE_HISTORY) {
+			float fadeout = (float)animCfg.fadeoutTime;
+			if (ImGui::SliderFloat("fade-out time", &fadeout, 0.0f, 10.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+				animCfg.fadeoutTime = fadeout;
+			}
+			float endTime = (float)animCfg.endTime;
+			if (ImGui::SliderFloat("final end time", &endTime, 0.0f, 30.0, "%.2fs", ImGuiSliderFlags_Logarithmic)) {
+				animCfg.endTime = endTime;
+			}
+			if (ImGui::SliderFloat("speedup factor", &app->speedup, 0.0f, 100.0f, "%.3fx", ImGuiSliderFlags_Logarithmic)) {
 				timestepModified = true;
 			}
-			ImGui::TableNextColumn();
-			if (ImGui::Button("Preset Slow", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
-				animCfg.PresetSpeedsSlow();
-				app->speedup = 1.0f;
-				app->timestepMode = 0;
-				app->fixedTimestep = 1000.0f/60.0f;
-				timestepModified = true;
+			if (ImGui::BeginTable("animspeedbuttonsplit", 2)) {
+				ImGui::TableNextColumn();
+				if (ImGui::Button("Reset Animation Speeds", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+					animCfg.ResetSpeeds();
+					app->speedup = 1.0f;
+					app->timestepMode = 0;
+					app->fixedTimestep = 1000.0f/60.0f;
+					timestepModified = true;
+				}
+				ImGui::TableNextColumn();
+				if (ImGui::Button("Preset Slow", ImVec2(ImGui::GetContentRegionAvail().x, 0.0f))) {
+					animCfg.PresetSpeedsSlow();
+					app->speedup = 1.0f;
+					app->timestepMode = 0;
+					app->fixedTimestep = 1000.0f/60.0f;
+					timestepModified = true;
+				}
+				ImGui::EndTable();
 			}
-			ImGui::EndTable();
 		}
 		if (timestepModified) {
 			applyAnimationSpeed(app);
@@ -2086,6 +2139,8 @@ void parseCommandlineArgs(AppConfig& cfg, MainApp& app, int argc, char**argv)
 					cfg.slowLast = (int)strtol(argv[++i], NULL, 10);
 				} else if (!strcmp(argv[i], "--output-stats")) {
 					cfg.outputStats = argv[++i];
+				} else if (!strcmp(argv[i], "--anim-mode")) {
+					animCfg.mode = (gpxvis::CAnimController::TAnimMode)strtol(argv[++i], NULL, 10);
 				} else {
 					unhandled = true;
 				}
