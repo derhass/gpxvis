@@ -1438,21 +1438,25 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		if (trackUpTo < 0.0f) {
 			trackUpTo = (float)curTrack->GetCount();
 		}
-		if (ImGui::SliderFloat("track time", &trackTime, 0.0f, (float)curTrack->GetDuration()-1.0f, "%.1fs")) {
-			animCtrl.SetCurrentTrackPos((double)trackTime);
+		if (animCfg.mode == gpxvis::CAnimController::ANIM_MODE_TRACK) {
+			if (ImGui::SliderFloat("track time", &trackTime, 0.0f, (float)curTrack->GetDuration()-1.0f, "%.1fs")) {
+				animCtrl.SetCurrentTrackPos((double)trackTime);
+			}
+			if (ImGui::SliderFloat("track position", &trackPos, 0.0f, (float)curTrack->GetLength(), "%.3fkm")) {
+				trackUpTo = curTrack->GetPointByDistance((double)trackPos);
+				trackTime = (float)curTrack->GetDurationAt(trackUpTo);
+				animCtrl.SetCurrentTrackPos((double)trackTime);
+			}
+			if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount()-1.0f, "%.2f")) {
+				trackTime = (float)curTrack->GetDurationAt(trackUpTo);
+				animCtrl.SetCurrentTrackPos((double)trackTime);
+			}
 		}
-		if (ImGui::SliderFloat("track position", &trackPos, 0.0f, (float)curTrack->GetLength(), "%.3fkm")) {
-			trackUpTo = curTrack->GetPointByDistance((double)trackPos);
-			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
-			animCtrl.SetCurrentTrackPos((double)trackTime);
-		}
-		if (ImGui::SliderFloat("track index", &trackUpTo, 0.0f, (float)curTrack->GetCount()-1.0f, "%.2f")) {
-			trackTime = (float)curTrack->GetDurationAt(trackUpTo);
-			animCtrl.SetCurrentTrackPos((double)trackTime);
-		}
-		float fadeRatio = animCtrl.GetCurrentFadeRatio();
-		if (ImGui::SliderFloat("fade-out", &fadeRatio, 0.0f, 1.0f, "%.2f")) {
-			animCtrl.SetCurrentFadeRatio(fadeRatio);
+		if (animCfg.mode != gpxvis::CAnimController::ANIM_MODE_HISTORY) {
+			float fadeRatio = animCtrl.GetCurrentFadeRatio();
+			if (ImGui::SliderFloat("fade-out", &fadeRatio, 0.0f, 1.0f, "%.2f")) {
+				animCtrl.SetCurrentFadeRatio(fadeRatio);
+			}
 		}
 
 		ImGui::SeparatorText("Animation Speed");
