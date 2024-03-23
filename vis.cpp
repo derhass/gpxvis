@@ -1232,6 +1232,11 @@ bool CAnimController::UpdateStepModeTrackAccu()
 			if (animCfg.fadeinTime <= 0.0) {
 				AccumulateTrackHistory();
 				vis.MixTrackAndBackground(1.0f);
+				if (animCfg.fadeoutTime > 0.0) {
+					curFadeRatio = 0.0f;
+					curFadeTime = 0.0;
+					nextPhase = PHASE_FADEOUT;
+				}
 			} else {
 				vis.MixTrackAndBackground(0.0f);
 				curFadeRatio = 0.0f;
@@ -1287,12 +1292,14 @@ bool CAnimController::UpdateStepModeTrackAccu()
 			(void)0;
 	}
 
-	if (nextPhase == PHASE_SWITCH_TRACK) {
-		if (animEndReached) {
-			nextPhase = PHASE_END;
+	if (curPhase != nextPhase) {
+		if (nextPhase == PHASE_SWITCH_TRACK) {
+			if (animEndReached) {
+				nextPhase = PHASE_END;
+			}
 		}
+		curPhase = nextPhase;
 	}
-	curPhase = nextPhase;
 
 	return cycleFinished;
 }
