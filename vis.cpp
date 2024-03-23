@@ -1205,10 +1205,6 @@ bool CAnimController::UpdateStepModeTrackAccu()
 {
 	bool cycleFinished = false;
 
-	if (animCfg.paused) {
-		return false;
-	}
-
 	if (newCycle) {
 		vis.Clear();
 		curFrame = 0;
