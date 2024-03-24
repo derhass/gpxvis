@@ -1405,40 +1405,41 @@ static void drawMainWindow(MainApp* app, AppConfig& cfg, gpxvis::CAnimController
 		}
 
 		if (animCfg.mode == gpxvis::CAnimController::ANIM_MODE_TRACK_ACCU) {
-			if (ImGui::BeginTable("animaccumodesplit", 4)) {
+			if (ImGui::BeginTable("animaccumodesplit", 6)) {
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted("Accum mode:");
 				int mode =(int)animCfg.accuMode;
 				ImGui::TableNextColumn();
-				if (ImGui::RadioButton("count##aam1", &mode, gpxvis::CAnimController::ACCU_COUNT)) {
-					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
-				}
-				ImGui::TableNextColumn();
 				if (ImGui::RadioButton("day##aam1", &mode, gpxvis::CAnimController::ACCU_DAY)) {
 					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
 				}
-				/*
-				ImGui::BeginDisabled(true);
 				ImGui::TableNextColumn();
 				if (ImGui::RadioButton("week##aam1", &mode, gpxvis::CAnimController::ACCU_WEEK)) {
 					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
 				}
-				ImGui::EndDisabled();
-				*/
 				ImGui::TableNextColumn();
 				if (ImGui::RadioButton("month##aam1", &mode, gpxvis::CAnimController::ACCU_MONTH)) {
+					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
+				}
+				ImGui::TableNextColumn();
+				if (ImGui::RadioButton("year##aam1", &mode, gpxvis::CAnimController::ACCU_YEAR)) {
+					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
+				}
+				ImGui::TableNextColumn();
+				if (ImGui::RadioButton("count##aam1", &mode, gpxvis::CAnimController::ACCU_COUNT)) {
 					animCfg.accuMode = (gpxvis::CAnimController::TAccuMode)mode;
 				}
 				ImGui::EndTable();
 			}
 		}
 		if (animCfg.mode == gpxvis::CAnimController::ANIM_MODE_TRACK_ACCU) {
-			if (animCfg.accuMode == gpxvis::CAnimController::ACCU_COUNT) {
-				int accuCnt = (int)animCfg.accuCount;
-				if (ImGui::SliderInt("Accum count", &accuCnt, 1, 200)) {
-					animCfg.accuCount = (size_t)accuCnt;
-				}
+			int accuCnt = (int)animCfg.accuCount;
+			if (ImGui::SliderInt("Accum count", &accuCnt, 1, 200)) {
+				animCfg.accuCount = (size_t)accuCnt;
 			}
+			ImGui::BeginDisabled(animCfg.accuMode != gpxvis::CAnimController::ACCU_WEEK);
+			ImGui::SliderInt("week start", &animCfg.accuWeekDayStart, 0, 6);
+			ImGui::EndDisabled();
 		}
 		ImGui::SeparatorText("Animation Position");
 		if (ImGui::BeginTable("animinfosplit", 3)) {
