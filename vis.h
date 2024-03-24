@@ -324,6 +324,8 @@ class CAnimController {
 		double        curFadeTime;
 		size_t        accumulateStart;
 		size_t        accumulateEnd;
+		time_t        accumulateStartTime;
+		time_t        accumulateEndTime;
 
 		double        offset[3];
 		double        scale[3];
@@ -351,7 +353,8 @@ class CAnimController {
 		float  GetTrackAnimation(TPhase& nextPhase);
 		float  GetFadeoutAnimation(TPhase& nextPhase);
 
-		bool ShouldAccumulateTrack(size_t startIdx, size_t idx);
+		void InitAccumulator(size_t startIdx);
+		bool ShouldAccumulateTrack(size_t idx);
 		bool AccumulateTracks(bool clearAccu);
 		void AccumulateTrackHistory();
 };

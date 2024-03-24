@@ -1649,63 +1649,120 @@ void CAnimController::GetTracksAt(double x, double y, double radius, std::vector
 	std::sort(indices.begin(),indices.end(), CloserThan);
 }
 
-bool CAnimController::ShouldAccumulateTrack(size_t startIdx, size_t idx)
+void CAnimController::InitAccumulator(size_t startIdx)
 {
-	if (startIdx == idx) {
-		return true;
-	}
-	if (startIdx > idx) {
-		return false;
+	struct tm tA,tB;
+	if (startIdx >= GetTrackCount()) {
+		accuInfoBuffer[0] = 0;
+		accumulateStart = 1;
+		accumulateEnd = 0;
+		return;
 	}
 
-	time_t startTime = tracks[startIdx].GetStartTimestamp();
-	time_t endTime = tracks[idx].GetStartTimestamp();
-	struct tm tA,tB;
+	accumulateStartTime = tracks[startIdx].GetStartTimestamp();
 #ifdef WIN32
-	localtime_s(&tA, &startTime);
-	localtime_s(&tB, &endTime);
+	localtime_s(&tA, &accumulateStartTime);
 #else
-	localtime_r(&startTime, &tA);
-	localtime_r(&endTime, &tB);
+	localtime_r(&accumulateStartTime, &tA);
 #endif
-	if (tA.tm_year != tB.tm_year) {
-		return false;
-	}
+	tA.tm_isdst = -1;
+	tA.tm_hour = 0;
+	tA.tm_min = 0;
+	tA.tm_sec = 0;
+	tB = tA;
+
+	accumulateStart = startIdx;
+	accumulateEnd = startIdx;
 
 	switch(animCfg.accuMode) {
 		case ACCU_COUNT:
-			if (idx - startIdx < animCfg.accuCount) {
+			if (animCfg.accuCount > 1) {
 				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
-					"#%llu - #%llu", (unsigned long long)startIdx+1, (unsigned long long)idx+1);
-				return true;
+					"#%llu - #%llu", (unsigned long long)startIdx+1, (unsigned long long)(startIdx+animCfg.accuCount));
+			} else {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"#%llu", (unsigned long long)startIdx+1);
 			}
-			break;
+			gpxutil::info("accumulation mode %d: %s", (int)animCfg.accuMode, accuInfoBuffer);
+			return;
 		case ACCU_DAY:
-			mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
-				"%d-%02d-%02d",
-				tA.tm_year+1900, tA.tm_mon+1, tA.tm_mday);
-			return ((tA.tm_mon == tB.tm_mon) && (tA.tm_mday == tB.tm_mday));
+			tB.tm_mday += (int)animCfg.accuCount;
+			break;
 		case ACCU_WEEK:
 			// TODO
 			gpxutil::warn("TODO: ACCU_WEEK not implemented!");
 			break;
 		case ACCU_MONTH:
-			mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
-				"%d-%02d",
-				tA.tm_year+1900, tA.tm_mon+1);
-			return (tA.tm_mon == tB.tm_mon);
+			tA.tm_mday = 1;
+			tB.tm_mday = 1;
+			tB.tm_mon += (int)animCfg.accuCount;
+			break;
 		default:
 			gpxutil::warn("invalid accuMode!");
+			return;
 	}
 
-	return false;
+	accumulateStartTime = mktime(&tA);
+	accumulateEndTime = mktime(&tB);
+	tB.tm_min = -1;
+	mktime(&tB);
+
+	switch(animCfg.accuMode) {
+		case ACCU_MONTH:
+			if (animCfg.accuCount > 1) {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"%d-%02d - %d-%02d",
+					tA.tm_year+1900, tA.tm_mon+1,
+					tB.tm_year+1900, tB.tm_mon+1);
+
+
+			} else {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"%d-%02d",
+					tA.tm_year+1900, tA.tm_mon+1);
+			}
+			break;
+		default:
+			if (animCfg.accuCount > 1 || animCfg.accuMode != ACCU_DAY) {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"%d-%02d-%02d - %d-%02d-%02d",
+					tA.tm_year+1900, tA.tm_mon+1, tA.tm_mday,
+					tB.tm_year+1900, tB.tm_mon+1, tB.tm_mday);
+
+
+			} else {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"%d-%02d-%02d",
+					tA.tm_year+1900, tA.tm_mon+1, tA.tm_mday);
+			}
+			break;
+	}
+	gpxutil::info("accumulation mode %d: %s (%d-%02d-%02d - %d-%02d-%02d)",
+		(int)animCfg.accuMode, accuInfoBuffer,
+		tA.tm_year+1900, tA.tm_mon+1, tA.tm_mday,
+		tB.tm_year+1900, tB.tm_mon+1, tB.tm_mday);
+}
+
+bool CAnimController::ShouldAccumulateTrack(size_t idx)
+{
+	if (accumulateStart > idx || accumulateStart > accumulateEnd) {
+		return false;
+	}
+	if (idx == accumulateStart) {
+		return true;
+	}
+
+	if (animCfg.accuMode == ACCU_COUNT) {
+		return (idx < accumulateStart + animCfg.accuCount);
+	}
+
+	time_t t = tracks[idx].GetStartTimestamp();
+	return (t >= accumulateStartTime && t < accumulateEndTime);
 }
 
 bool CAnimController::AccumulateTracks(bool clearAccu)
 {
 	size_t cnt = tracks.size();
-	size_t start = curTrack;
-	size_t end;
 	size_t i;
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, vis.fbo[CVis::FB_TRACK]);
@@ -1719,20 +1776,24 @@ bool CAnimController::AccumulateTracks(bool clearAccu)
 		return true;
 	}
 
-	accumulateStart = start;
+	InitAccumulator(curTrack);
 
-	for (i=start; i<cnt; i++) {
-		if (!ShouldAccumulateTrack(start, i)) {
+	for (i=accumulateStart; i<cnt; i++) {
+		if (!ShouldAccumulateTrack(i)) {
 			break;
 		}
 		SwitchToTrackInternal(i);
 		vis.DrawTrackInternal(-1.0f);
+		gpxutil::info("  accumulation: selected track %llu: %s", (unsigned long long)(i+1), tracks[i].GetInfo());
 	}
-	end = i;
-	accumulateEnd = end;
+	accumulateEnd = i;
+	gpxutil::info("accumulation: selected %llu tracks: %llu - %llu",
+		(unsigned long long)(accumulateEnd-accumulateStart),
+		(unsigned long long)(accumulateStart + 1),
+		(unsigned long long)(accumulateEnd));
 
-	if (end < cnt) {
-		SwitchToTrackInternal(end);
+	if (accumulateEnd < cnt) {
+		SwitchToTrackInternal(accumulateEnd);
 		return false;
 	}
 
