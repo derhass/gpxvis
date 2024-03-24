@@ -740,6 +740,7 @@ void CAnimController::TAnimConfig::Reset()
 	mode = ANIM_MODE_TRACK;
 	accuMode = ACCU_MONTH;
 	accuCount = 1;
+	accuWeekDayStart = 3; /* wednesday */
 	ResetSpeeds();
 	ResetAtCycle();
 	ResetModes();
@@ -1689,13 +1690,23 @@ void CAnimController::InitAccumulator(size_t startIdx)
 			tB.tm_mday += (int)animCfg.accuCount;
 			break;
 		case ACCU_WEEK:
-			// TODO
-			gpxutil::warn("TODO: ACCU_WEEK not implemented!");
+			tA.tm_mday -= (tA.tm_wday - animCfg.accuWeekDayStart);
+			if (tA.tm_wday < animCfg.accuWeekDayStart) {
+				tA.tm_mday =- 7;
+			}
+			tB.tm_mday = tA.tm_mday + 7 * (int)animCfg.accuCount;
 			break;
 		case ACCU_MONTH:
 			tA.tm_mday = 1;
 			tB.tm_mday = 1;
 			tB.tm_mon += (int)animCfg.accuCount;
+			break;
+		case ACCU_YEAR:
+			tA.tm_mday = 1;
+			tA.tm_mon = 0;
+			tB.tm_mday = 1;
+			tB.tm_mon = 0;
+			tB.tm_year += (int)animCfg.accuCount;
 			break;
 		default:
 			gpxutil::warn("invalid accuMode!");
@@ -1714,12 +1725,22 @@ void CAnimController::InitAccumulator(size_t startIdx)
 					"%d-%02d - %d-%02d",
 					tA.tm_year+1900, tA.tm_mon+1,
 					tB.tm_year+1900, tB.tm_mon+1);
-
-
 			} else {
 				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
 					"%d-%02d",
 					tA.tm_year+1900, tA.tm_mon+1);
+			}
+			break;
+		case ACCU_YEAR:
+			if (animCfg.accuCount > 1) {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"%d - %d",
+					tA.tm_year+1900,
+					tB.tm_year+1900);
+			} else {
+				mysnprintf(accuInfoBuffer, sizeof(accuInfoBuffer),
+					"%d",
+					tA.tm_year+1900);
 			}
 			break;
 		default:

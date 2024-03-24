@@ -206,6 +206,7 @@ class CAnimController {
 			GLsizei       resolutionGranularity;
 			TAccuMode     accuMode;
 			size_t        accuCount;
+			int           accuWeekDayStart;
 
 			TAnimConfig();
 			void Reset();
