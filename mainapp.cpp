@@ -1135,14 +1135,15 @@ static void drawInfoWindow(MainApp* app, gpxvis::CAnimController& animCtrl, gpxv
 		}
 		ImGui::Text("found %llu tracks", (unsigned long long)app->closeTracks.size());
 		if (ImGui::BeginListBox("Closest Tracks", ImVec2(-FLT_MIN,  10 * ImGui::GetTextLineHeightWithSpacing()))) {
-		for (size_t i=0; i<app->closeTracks.size(); i++) {
-			char info[512];
-			size_t j = app->closeTracks[i].idx;
-			mysnprintf(info, sizeof(info), "%d. %.1fm %s [%s] %.1fkm %s", (int)(i+1), app->closeTracks[i].d * app->selectedProjectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
-			ImGui::TextUnformatted(info);
+			for (size_t i=0; i<app->closeTracks.size(); i++) {
+				char info[512];
+				size_t j = app->closeTracks[i].idx;
+				mysnprintf(info, sizeof(info), "%d. %.1fm %s [%s] %.1fkm %s", (int)(i+1), app->closeTracks[i].d * app->selectedProjectionScale * 1000.0, tracks[j].GetFilename(), tracks[j].GetInfo(), tracks[j].GetLength(), tracks[j].GetDurationString());
+				ImGui::TextUnformatted(info);
+			}
+			ImGui::EndListBox();
 		}
-		ImGui::EndListBox();
-	}
+		ImGui::TreePop();
 	
 	}
 	ImGui::End();
