@@ -278,7 +278,7 @@ class CAnimController {
 		bool ReverseTrackOrder();
 		bool RemoveDuplicateTracks();
 
-		bool StatsToCSV(const char *filename) const;
+		bool StatsToCSV(const char *filename, const gpx::TPauseDetectorConfig& pauseCfg) const;
 
 		void TransformToPos(const GLfloat posNormalized[2], double pos[2]) const;
 		void TransformFromPos(const double pos[2], GLfloat posNormalized[2]) const;

@@ -1565,7 +1565,7 @@ bool CAnimController::RemoveDuplicateTracks()
 	return RestoreCurrentTrack(curId);
 }
 
-bool CAnimController::StatsToCSV(const char *filename) const
+bool CAnimController::StatsToCSV(const char *filename, const gpx::TPauseDetectorConfig& pauseCfg) const
 {
 	char buf[4096];
 	bool success = true;
@@ -1581,7 +1581,7 @@ bool CAnimController::StatsToCSV(const char *filename) const
 	}
 	const size_t cnt = tracks.size();
 	for (size_t i=0; i<cnt; i++) {
-		tracks[i].GetStatLine(buf, sizeof(buf));
+		tracks[i].GetStatLine(buf, sizeof(buf), pauseCfg);
 		if (fputs(buf, file) == EOF) {
 			success = false;
 		}

@@ -37,6 +37,16 @@ struct TLineSegment {
 	double invLen;
 };
 
+struct TPauseDetectorConfig {
+	double pauseMaxRadius;
+	double pauseMinDuration;
+	double pauseContinueRadius;
+	double pauseContinueDuration;
+
+	TPauseDetectorConfig();
+	void Reset();
+};
+
 class CTrack {
 	public:
 		CTrack();
@@ -66,7 +76,8 @@ class CTrack {
 
 		time_t GetStartTimestamp() const;
 		static void GetStatLineHeader(char *buf, size_t bufSize, const char *separator="\t", const char *prefix="", const char *suffix="\n");
-		void GetStatLine(char *buf, size_t bufSize, const char *separator="\t", const char *prefix="", const char *suffix="\n") const;
+		void GetStatLine(char *buf, size_t bufSize, const TPauseDetectorConfig& pauseCfg, const char *separator="\t", const char *prefix="", const char *suffix="\n") const;
+		size_t GetPauseStats(double& duration, double& distance, const TPauseDetectorConfig& pauseCfg) const;
 
 		void   SetInternalID(size_t id) {internalID = id;}
 		size_t GetIntenalID() const {return internalID;}

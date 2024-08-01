@@ -49,6 +49,7 @@ struct AppConfig {
 	const char *outputFrames;
 	const char *imageFileType;
 	const char *outputStats;
+	gpx::TPauseDetectorConfig pauseDetector;
 
 	AppConfig() :
 		posx(100),
@@ -757,7 +758,7 @@ bool initMainApp(MainApp *app, AppConfig& cfg)
 	app->selectedTrackPos[1] = p[1];
 
 	if (cfg.outputStats) {
-		app->animCtrl.StatsToCSV(cfg.outputStats);
+		app->animCtrl.StatsToCSV(cfg.outputStats, cfg.pauseDetector);
 	}
 
 	/* initialize the timer */

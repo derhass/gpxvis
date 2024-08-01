@@ -42,6 +42,19 @@ extern double getProjectionScale(double lat)
 	return cos(lat * M_PI / 180.0);
 }
 
+TPauseDetectorConfig::TPauseDetectorConfig()
+{
+	Reset();
+}
+
+void TPauseDetectorConfig::Reset()
+{
+	pauseMaxRadius = 0.025;
+	pauseMinDuration = 120.0;
+	pauseContinueRadius = 0.250;
+	pauseContinueDuration = 300.0;
+}
+
 CTrack::CTrack() :
 	internalID(0)
 {
@@ -455,8 +468,11 @@ void CTrack::GetStatLineHeader(char *buf, size_t bufSize, const char *separator,
 		suffix = "";
 	}
 
-	mysnprintf(buf, bufSize, "%syear%smonth%sday%sdistance%sduration%s",
+	mysnprintf(buf, bufSize, "%syear%smonth%sday%sdistance%sduration%spauseCnt%spauseDuration%spauseDistance%s",
 		prefix,
+		separator,
+		separator,
+		separator,
 		separator,
 		separator,
 		separator,
@@ -465,7 +481,7 @@ void CTrack::GetStatLineHeader(char *buf, size_t bufSize, const char *separator,
 	buf[bufSize-1] = 0;
 }
 
-void CTrack::GetStatLine(char *buf, size_t bufSize, const char *separator, const char *prefix, const char *suffix) const
+void CTrack::GetStatLine(char *buf, size_t bufSize, const TPauseDetectorConfig& pauseCfg, const char *separator, const char *prefix, const char *suffix) const
 {
 	if (!buf || bufSize < 1) {
 		return;
@@ -481,10 +497,14 @@ void CTrack::GetStatLine(char *buf, size_t bufSize, const char *separator, const
 	}
 
 	if (points.size() > 0) {
+		size_t pauseCnt;
+		double pauseDuration;
+		double pauseDistance;
 		struct tm *tm;
 		time_t start = GetStartTimestamp();
 		tm = localtime(&start);
-		mysnprintf(buf, bufSize, "%s%04d%s%02d%s%02d%s%.3f%s%.3f%s",
+		pauseCnt = GetPauseStats(pauseDuration, pauseDistance, pauseCfg);
+		mysnprintf(buf, bufSize, "%s%04d%s%02d%s%02d%s%.3f%s%.3f%s%llu%s%.3f%s%.3f%s",
 			prefix,
 			tm->tm_year+1900,
 			separator,
@@ -495,11 +515,91 @@ void CTrack::GetStatLine(char *buf, size_t bufSize, const char *separator, const
 			GetLength(),
 			separator,
 			GetDuration(),
+			separator,
+			(unsigned long long)pauseCnt,
+			separator,
+			pauseDuration,
+			separator,
+			pauseDistance,
 			suffix);
 	} else {
 		buf[0] = 0;
 	}
 	buf[bufSize-1] = 0;
+}
+
+size_t CTrack::GetPauseStats(double& duration, double& distance, const TPauseDetectorConfig& pauseCfg) const
+{
+	const double pauseRadiusSqr = pauseCfg.pauseMaxRadius * pauseCfg.pauseMaxRadius;
+	size_t lastPauseEnd = (size_t)-1;
+	size_t cnt = GetCount();
+	size_t pauseCnt = 0;
+	size_t i,j;
+
+	duration = 0.0;
+	distance = 0.0;
+
+	if (cnt < 1) {
+		return 0;
+	}
+
+	cnt--;
+
+	i = 0;
+	while (i<cnt) {
+		const TPoint& p = points[i];
+		double barycenterSum[2];
+		size_t pCnt = 1;
+		barycenterSum[0] = p.x;
+		barycenterSum[1] = p.y;
+		for (j=i+1; j<cnt; j++) {
+			const TPoint& q = points[j];
+			double d[2];
+			d[0] = q.x - (barycenterSum[0] / (double)pCnt);
+			d[1] = q.y - (barycenterSum[1] / (double)pCnt);
+			double distSqr = d[0]*d[0] + d[1]*d[1];
+			if (distSqr > pauseRadiusSqr) {
+				break;
+			}
+			barycenterSum[0] += points[j].x;
+			barycenterSum[1] += points[j].y;
+			pCnt++;
+		}
+		if (pCnt > 1) {
+			bool continueLast = false;
+			j = i + pCnt - 1;
+			const TPoint& q = points[j];
+			double dur = q.timeOnTrack - p.timeOnTrack;
+			if (dur >= pauseCfg.pauseMinDuration) {
+				double dist = q.posOnTrack - p.posOnTrack;
+				duration += dur;
+				distance += dist;
+				if (lastPauseEnd < cnt) {
+					const TPoint& r = points[lastPauseEnd];
+					if (p.timeOnTrack - r.timeOnTrack <= pauseCfg.pauseContinueDuration) {
+						double dr[2];
+						double distr;
+						dr[0] = r.x - p.x;
+						dr[1] = r.y - p.y;
+						distr = dr[0]*dr[0] + dr[1]*dr[1];
+						if (distr <= (pauseCfg.pauseContinueRadius * pauseCfg.pauseContinueRadius)) {
+							continueLast = true;
+						}
+
+					}
+				}
+				if (!continueLast) {
+					pauseCnt++;
+				}
+				lastPauseEnd = j;
+				//printf("XXX%lu %lu %f %f %f\n",i,pCnt,dur,dist,dist/dur);
+			}
+		}
+		i+=pCnt;
+	}
+
+
+	return pauseCnt;
 }
 
 double CTrack::GetDistanceSqrTo(double x, double y) const
